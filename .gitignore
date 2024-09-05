@@ -1,7 +1,7 @@
 # Directories
 .vs/
-bin/
-bin-int/
+**/bin/
+**/bin-int/
 
 # Files
 *.user
@@ -11,3 +11,7 @@ bin-int/
 *.vcxproj
 *.vcxproj.filters
 *.vcxproj.user
+
+# Directories
+VulkanTutorial/vendor/VulkanSDK
+scripts/__pycache__
