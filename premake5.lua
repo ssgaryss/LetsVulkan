@@ -1,3 +1,5 @@
+include "Dependencies.lua"
+
 workspace "LetsVulkan"
 	architecture "x64"
 	startproject "VulkanTutorial"
@@ -12,7 +14,7 @@ workspace "LetsVulkan"
 outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
 group "Dependencies"
-    -- TODO
+    include "VulkanTutorial/vendor/glfw"
 group ""
 
 group "Core"

@@ -15,6 +15,15 @@ project "VulkanTutorial"
 
     includedirs
     {
+        "%{IncludeDir.glfw}",
+        "%{IncludeDir.glm}",
+        "%{IncludeDir.VulkanSDK}"
+    }
+
+    links
+    {
+        "glfw",
+        "%{Library.Vulkan}"
     }
 
     filter "configurations:Debug"

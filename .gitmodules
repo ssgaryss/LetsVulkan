@@ -1,0 +1,6 @@
+[submodule "VulkanTutorial/vendor/glm"]
+	path = VulkanTutorial/vendor/glm
+	url = git@github.com:ssgaryss/glm.git
+[submodule "VulkanTutorial/vendor/glfw"]
+	path = VulkanTutorial/vendor/glfw
+	url = git@github.com:ssgaryss/glfw.git

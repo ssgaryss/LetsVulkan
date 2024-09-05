@@ -6,6 +6,9 @@
 # Files
 *.user
 
+#PyCharm
+.idea/
+
 #Visual Studio
 *.sln
 *.vcxproj
