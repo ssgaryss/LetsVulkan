@@ -26,6 +26,13 @@ project "VulkanTutorial"
         "%{Library.Vulkan}"
     }
 
+    defines
+    {
+        "GLFW_INCLUDE_VULKAN",
+        "GLM_FORCE_RADIANS",
+        "GLM_FORCE_DEPTH_ZERO_TO_ONE"
+    }
+
     filter "configurations:Debug"
         defines "PIKA_DEBUG"
         runtime "Debug"
