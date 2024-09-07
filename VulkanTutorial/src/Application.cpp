@@ -30,6 +30,14 @@ namespace VulkanTutorial {
 	{
 		showExtentionInformation();
 		createInstance();
+		// TODO !
+		//setupDebugMessenger();
+		//createSurface();
+		//pickPhysicalDevice();
+		//createLogicalDevice();
+		//createSwapChain();
+		//createImageViews();
+		//createGraphicsPipeline();
 	}
 	
 	void Application::mainLoop()
@@ -41,6 +49,11 @@ namespace VulkanTutorial {
 	
 	void Application::cleanup()
 	{
+		// TODO !
+		//vkDestroyImageView(device, imageView, nullptr);
+		//vkDestroySwapchainKHR
+		//vkDestroyDevice(device, nullptr);
+		//vkDestroySurfaceKHR(instance, surface, nullptr);
 		vkDestroyInstance(m_Instance, nullptr);
 		glfwDestroyWindow(m_Window);
 		glfwTerminate();
