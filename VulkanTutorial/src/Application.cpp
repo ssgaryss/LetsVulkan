@@ -30,26 +30,39 @@ namespace VulkanTutorial {
 	{
 		showExtentionInformation();
 		createInstance();
-		// TODO !
 		//setupDebugMessenger();
 		//createSurface();
 		//pickPhysicalDevice();
 		//createLogicalDevice();
 		//createSwapChain();
 		//createImageViews();
+		//createRenderPass();
 		//createGraphicsPipeline();
+		//createFramebuffers();
+		//createCommandPool();
+		//createCommandBuffer();
+		//createSyncObjects();
 	}
 	
 	void Application::mainLoop()
 	{
 		while (!glfwWindowShouldClose(m_Window)) {
 			glfwPollEvents();
+			//drawFrame();
 		}
+		//vkDeviceWaitIdle(device);
 	}
 	
 	void Application::cleanup()
 	{
-		// TODO !
+		//vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
+		//vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
+		//vkDestroyFence(device, inFlightFence, nullptr);
+		//vkDestroyCommandPool
+		//vkDestroyFramebuffer
+		//vkDestroyPipeline
+		//vkDestroyPipelineLayout
+		//vkDestroyRenderPass
 		//vkDestroyImageView(device, imageView, nullptr);
 		//vkDestroySwapchainKHR
 		//vkDestroyDevice(device, nullptr);
