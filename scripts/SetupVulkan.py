@@ -22,7 +22,6 @@ class VulkanConfiguration:
 
         if (not cls.CheckVulkanSDKDebugLibs()):
             print("\nNo Vulkan SDK debug libs found. Install Vulkan SDK with debug libs.")
-            print("(see docs.hazelengine.com/GettingStarted for more info).")
             print("Debug configuration disabled.")
 
     @classmethod
