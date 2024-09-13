@@ -5,6 +5,7 @@
 #include <exception>
 #include <iostream>
 #include <format>
+#include <unordered_map>
 
 namespace VulkanTutorial {
 
@@ -27,11 +28,10 @@ namespace VulkanTutorial {
 
 	void Application::initVulkan()
 	{
-		showExtentionInformation();
 		createInstance();
 		setupDebugMessenger();
+		pickPhysicalDevice();
 		//createSurface();
-		//pickPhysicalDevice();
 		//createLogicalDevice();
 		//createSwapChain();
 		//createImageViews();
@@ -107,6 +107,21 @@ namespace VulkanTutorial {
 		return Extentions;
 	}
 
+	uint32_t Application::ratePhysicalDevice(VkPhysicalDevice vPhysicalDevice)
+	{
+		uint32_t Score = 0;
+		VkPhysicalDeviceProperties Properties;
+		VkPhysicalDeviceFeatures Features;
+		vkGetPhysicalDeviceProperties(vPhysicalDevice, &Properties);
+		vkGetPhysicalDeviceFeatures(vPhysicalDevice, &Features);
+		if (Properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) // 独立显卡
+			Score += 1000;
+		Score += Properties.limits.maxImageDimension2D;                    // Texture最大size支持
+		if (!Features.geometryShader)                                      // 是否支持Geometry Shader
+			return 0;
+		return Score;
+	}
+
 	void Application::createInstance()
 	{
 		std::cout << "Try to create Vulkan instance ..." << "\n";
@@ -122,9 +137,13 @@ namespace VulkanTutorial {
 		InstanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		InstanceInfo.pApplicationInfo = &AppInfo;
 
+		showExtentionInformation();
 		auto Extension = getRequiredExtentions();
 		InstanceInfo.enabledExtensionCount = static_cast<uint32_t>(Extension.size());
 		InstanceInfo.ppEnabledExtensionNames = Extension.data();
+		std::cout << "Require " << InstanceInfo.enabledExtensionCount << " extensions\n";
+		for (const auto& it : Extension)
+			std::cout << std::format("\t{}\n", it);
 
 		InstanceInfo.enabledLayerCount = 0;
 
@@ -161,6 +180,34 @@ namespace VulkanTutorial {
 			throw std::runtime_error("Failed to set up debug messenger!");
 		else
 			std::cout << "Success to set up Vulkan debug messenger !" << "\n";
+	}
+
+	void Application::pickPhysicalDevice()
+	{
+		std::cout << "Try to pick physical device for Vulkan ..." << "\n";
+		uint32_t PhysicalDeviceCount = 0;
+		vkEnumeratePhysicalDevices(m_Instance, &PhysicalDeviceCount, nullptr);
+		if (PhysicalDeviceCount == 0)
+			throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+		std::vector<VkPhysicalDevice> PhysicalDeveices(PhysicalDeviceCount);
+		vkEnumeratePhysicalDevices(m_Instance, &PhysicalDeviceCount, PhysicalDeveices.data());
+		std::cout << "Available physical devices:\n";
+		std::unordered_map<uint32_t, VkPhysicalDevice> ScoresDevices;
+		uint32_t MaxScore = 0;
+		for (const auto& Device : PhysicalDeveices) {
+			auto Score = ratePhysicalDevice(Device);
+			ScoresDevices[Score] = Device;
+			MaxScore = std::max(MaxScore, Score);
+			VkPhysicalDeviceProperties PhysicalDeviceProperties;
+			vkGetPhysicalDeviceProperties(Device, &PhysicalDeviceProperties);
+			std::cout << std::format("\t{}\n", PhysicalDeviceProperties.deviceName);
+		}
+		m_PhysicalDevice = ScoresDevices[MaxScore];
+		VkPhysicalDeviceProperties ChosenPhysicalDeviceProperties;
+		vkGetPhysicalDeviceProperties(m_PhysicalDevice, &ChosenPhysicalDeviceProperties);
+		if (m_PhysicalDevice == VK_NULL_HANDLE)
+			throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+		std::cout << "Success to pick physical device " << ChosenPhysicalDeviceProperties.deviceName << " for Vulkan !" << "\n";
 	}
 
 }
