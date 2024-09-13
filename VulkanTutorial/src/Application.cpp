@@ -5,7 +5,7 @@
 #include <exception>
 #include <iostream>
 #include <format>
-#include <vector>
+#include <unordered_map>
 
 namespace VulkanTutorial {
 
@@ -28,11 +28,10 @@ namespace VulkanTutorial {
 
 	void Application::initVulkan()
 	{
-		showExtentionInformation();
 		createInstance();
-		//setupDebugMessenger();
+		setupDebugMessenger();
+		pickPhysicalDevice();
 		//createSurface();
-		//pickPhysicalDevice();
 		//createLogicalDevice();
 		//createSwapChain();
 		//createImageViews();
@@ -43,7 +42,7 @@ namespace VulkanTutorial {
 		//createCommandBuffer();
 		//createSyncObjects();
 	}
-	
+
 	void Application::mainLoop()
 	{
 		while (!glfwWindowShouldClose(m_Window)) {
@@ -52,7 +51,7 @@ namespace VulkanTutorial {
 		}
 		//vkDeviceWaitIdle(device);
 	}
-	
+
 	void Application::cleanup()
 	{
 		//vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
@@ -67,6 +66,10 @@ namespace VulkanTutorial {
 		//vkDestroySwapchainKHR
 		//vkDestroyDevice(device, nullptr);
 		//vkDestroySurfaceKHR(instance, surface, nullptr);
+		if (IsEnableValidationLayer) {
+			auto Func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_Instance, "vkDestroyDebugUtilsMessengerEXT");
+			Func(m_Instance, m_DebugMessenger, nullptr);
+		}
 		vkDestroyInstance(m_Instance, nullptr);
 		glfwDestroyWindow(m_Window);
 		glfwTerminate();
@@ -91,8 +94,37 @@ namespace VulkanTutorial {
 		}
 	}
 
+	std::vector<const char*> Application::getRequiredExtentions()
+	{
+		uint32_t GLFWExtentionCount = 0;
+		const char** GLFWExtentions;
+		GLFWExtentions = glfwGetRequiredInstanceExtensions(&GLFWExtentionCount);
+
+		std::vector<const char*> Extentions(GLFWExtentions, GLFWExtentions + GLFWExtentionCount);
+		if (IsEnableValidationLayer)
+			Extentions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+
+		return Extentions;
+	}
+
+	uint32_t Application::ratePhysicalDevice(VkPhysicalDevice vPhysicalDevice)
+	{
+		uint32_t Score = 0;
+		VkPhysicalDeviceProperties Properties;
+		VkPhysicalDeviceFeatures Features;
+		vkGetPhysicalDeviceProperties(vPhysicalDevice, &Properties);
+		vkGetPhysicalDeviceFeatures(vPhysicalDevice, &Features);
+		if (Properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) // 独立显卡
+			Score += 1000;
+		Score += Properties.limits.maxImageDimension2D;                    // Texture最大size支持
+		if (!Features.geometryShader)                                      // 是否支持Geometry Shader
+			return 0;
+		return Score;
+	}
+
 	void Application::createInstance()
 	{
+		std::cout << "Try to create Vulkan instance ..." << "\n";
 		VkApplicationInfo AppInfo{};
 		AppInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		AppInfo.pApplicationName = "VulkanTutorial";
@@ -105,12 +137,13 @@ namespace VulkanTutorial {
 		InstanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		InstanceInfo.pApplicationInfo = &AppInfo;
 
-		uint32_t GLFWExtentionCount = 0;
-		const char** GLFWExtentions;
-		GLFWExtentions = glfwGetRequiredInstanceExtensions(&GLFWExtentionCount);
-
-		InstanceInfo.enabledExtensionCount = GLFWExtentionCount;
-		InstanceInfo.ppEnabledExtensionNames = GLFWExtentions;
+		showExtentionInformation();
+		auto Extension = getRequiredExtentions();
+		InstanceInfo.enabledExtensionCount = static_cast<uint32_t>(Extension.size());
+		InstanceInfo.ppEnabledExtensionNames = Extension.data();
+		std::cout << "Require " << InstanceInfo.enabledExtensionCount << " extensions\n";
+		for (const auto& it : Extension)
+			std::cout << std::format("\t{}\n", it);
 
 		InstanceInfo.enabledLayerCount = 0;
 
@@ -118,6 +151,63 @@ namespace VulkanTutorial {
 
 		if (Result != VK_SUCCESS)
 			throw std::runtime_error("Fail to create vulkan instance !");
+		else
+			std::cout << "Success to create Vulkan instance !" << "\n";
+	}
+
+	void Application::setupDebugMessenger()
+	{
+		std::cout << "Try to set up Vulkan debug messenger ..." << "\n";
+		VkDebugUtilsMessengerCreateInfoEXT CreateInfo{};
+		CreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+		CreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+			| VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
+			| VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
+			| VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+		CreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+			| VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+			| VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		CreateInfo.pfnUserCallback = [](VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+			VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+			const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+			void* pUserData) -> decltype(auto) {
+				std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+				return VK_FALSE;
+			};
+		// vkCreateDebugUtilsMessengerEXT是一个扩展函数，并没有默认导入，因此需要显示手动导入
+		auto Func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_Instance, "vkCreateDebugUtilsMessengerEXT");
+		if (!Func || Func(m_Instance, &CreateInfo, nullptr, &m_DebugMessenger) != VK_SUCCESS)
+			throw std::runtime_error("Failed to set up debug messenger!");
+		else
+			std::cout << "Success to set up Vulkan debug messenger !" << "\n";
+	}
+
+	void Application::pickPhysicalDevice()
+	{
+		std::cout << "Try to pick physical device for Vulkan ..." << "\n";
+		uint32_t PhysicalDeviceCount = 0;
+		vkEnumeratePhysicalDevices(m_Instance, &PhysicalDeviceCount, nullptr);
+		if (PhysicalDeviceCount == 0)
+			throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+		std::vector<VkPhysicalDevice> PhysicalDeveices(PhysicalDeviceCount);
+		vkEnumeratePhysicalDevices(m_Instance, &PhysicalDeviceCount, PhysicalDeveices.data());
+		std::cout << "Available physical devices:\n";
+		std::unordered_map<uint32_t, VkPhysicalDevice> ScoresDevices;
+		uint32_t MaxScore = 0;
+		for (const auto& Device : PhysicalDeveices) {
+			auto Score = ratePhysicalDevice(Device);
+			ScoresDevices[Score] = Device;
+			MaxScore = std::max(MaxScore, Score);
+			VkPhysicalDeviceProperties PhysicalDeviceProperties;
+			vkGetPhysicalDeviceProperties(Device, &PhysicalDeviceProperties);
+			std::cout << std::format("\t{}\n", PhysicalDeviceProperties.deviceName);
+		}
+		m_PhysicalDevice = ScoresDevices[MaxScore];
+		VkPhysicalDeviceProperties ChosenPhysicalDeviceProperties;
+		vkGetPhysicalDeviceProperties(m_PhysicalDevice, &ChosenPhysicalDeviceProperties);
+		if (m_PhysicalDevice == VK_NULL_HANDLE)
+			throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+		std::cout << "Success to pick physical device " << ChosenPhysicalDeviceProperties.deviceName << " for Vulkan !" << "\n";
 	}
 
 }

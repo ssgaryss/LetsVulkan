@@ -34,16 +34,16 @@ project "VulkanTutorial"
     }
 
     filter "configurations:Debug"
-        defines "PIKA_DEBUG"
+        defines "VK_TUTORIAL_DEBUG"
         runtime "Debug"
         symbols "On"
 
     filter "configurations:Release"
-        defines "PIKA_RELEASE"
+        defines "VK_TUTORIAL_RELEASE"
         runtime "Release"
         optimize "On"
 
     filter "configurations:Dist"
-        defines "PIKA_DIST"
+        defines "VK_TUTORIAL_DIST"
         runtime "Release"
         optimize "On"
