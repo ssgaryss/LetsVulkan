@@ -31,7 +31,7 @@ namespace VulkanTutorial {
 		createInstance();
 		setupDebugMessenger();
 		pickPhysicalDevice();
-		//createSurface();
+		createSurface();
 		createLogicalDevice();
 		//createSwapChain();
 		//createImageViews();
@@ -54,6 +54,7 @@ namespace VulkanTutorial {
 
 	void Application::cleanup()
 	{
+		std::cout << "Try to clean up ..." << "\n";
 		//vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
 		//vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
 		//vkDestroyFence(device, inFlightFence, nullptr);
@@ -65,7 +66,7 @@ namespace VulkanTutorial {
 		//vkDestroyImageView(device, imageView, nullptr);
 		//vkDestroySwapchainKHR
 		vkDestroyDevice(m_LogicalDevice, nullptr);
-		//vkDestroySurfaceKHR(instance, surface, nullptr);
+		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
 		if (IsEnableValidationLayer) {
 			auto Func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_Instance, "vkDestroyDebugUtilsMessengerEXT");
 			Func(m_Instance, m_DebugMessenger, nullptr);
@@ -73,6 +74,7 @@ namespace VulkanTutorial {
 		vkDestroyInstance(m_Instance, nullptr);
 		glfwDestroyWindow(m_Window);
 		glfwTerminate();
+		std::cout << "Success to clean up !" << "\n";
 	}
 
 	void Application::showExtentionInformation()
@@ -122,7 +124,7 @@ namespace VulkanTutorial {
 		return Score;
 	}
 
-	std::optional<uint32_t> Application::findGraphicQueueFamilies(VkPhysicalDevice vPhysicalDevice)
+	std::optional<uint32_t> Application::findQueueFamilies(VkPhysicalDevice vPhysicalDevice, VkQueueFlagBits vFlag)
 	{
 		std::optional<uint32_t> QueueIndice = std::nullopt;
 		uint32_t queueFamilyCount = 0;
@@ -131,7 +133,26 @@ namespace VulkanTutorial {
 		vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, queueFamilies.data());
 
 		for (uint32_t i = 0; i < queueFamilyCount; ++i) {
-			if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			if (queueFamilies[i].queueFlags & vFlag)
+				QueueIndice = i;
+			if (QueueIndice.has_value())
+				break;
+		}
+		return QueueIndice;
+	}
+
+	std::optional<uint32_t> Application::findPresentQueueFamilies(VkPhysicalDevice vPhysicalDevice)
+	{
+		std::optional<uint32_t> QueueIndice = std::nullopt;
+		uint32_t queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, nullptr);
+		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, queueFamilies.data());
+
+		VkBool32 IsSupport = false;
+		for (uint32_t i = 0; i < queueFamilyCount; ++i) {
+			vkGetPhysicalDeviceSurfaceSupportKHR(m_PhysicalDevice, i, m_Surface, &IsSupport);
+			if (IsSupport)
 				QueueIndice = i;
 			if (QueueIndice.has_value())
 				break;
@@ -199,6 +220,18 @@ namespace VulkanTutorial {
 			std::cout << "Success to set up Vulkan debug messenger !" << "\n";
 	}
 
+	void Application::createSurface()
+	{
+		std::cout << "Try to create suface of Win32 for Vulkan ..." << "\n";
+		VkWin32SurfaceCreateInfoKHR CreateInfo{};
+		CreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		CreateInfo.hwnd = glfwGetWin32Window(m_Window);
+		CreateInfo.hinstance = GetModuleHandle(nullptr);
+		if (vkCreateWin32SurfaceKHR(m_Instance, &CreateInfo, nullptr, &m_Surface))
+			throw std::runtime_error("Failed to create window surface!");
+		std::cout << "Success to create suface of Win32 for Vulkan !" << "\n";
+	}
+
 	void Application::pickPhysicalDevice()
 	{
 		std::cout << "Try to pick physical device for Vulkan ..." << "\n";
@@ -230,7 +263,8 @@ namespace VulkanTutorial {
 	void Application::createLogicalDevice()
 	{
 		std::cout << "Try to create logical device for Vulkan ..." << "\n";
-		std::optional<uint32_t> GraphicQueueIndice = findGraphicQueueFamilies(m_PhysicalDevice);
+		std::optional<uint32_t> GraphicQueueIndice = findQueueFamilies(m_PhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
+		std::optional<uint32_t> PresentQueueIndice = findPresentQueueFamilies(m_PhysicalDevice);
 		VkDeviceQueueCreateInfo DeviceQueueCreateInfo{};
 		DeviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		DeviceQueueCreateInfo.queueCount = 1;
@@ -249,6 +283,7 @@ namespace VulkanTutorial {
 		if (vkCreateDevice(m_PhysicalDevice, &DeviceCreateInfo, nullptr, &m_LogicalDevice) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create logical device!");
 		vkGetDeviceQueue(m_LogicalDevice, GraphicQueueIndice.value(), 0, &m_GraphicsQueue); // 这里只有一个queue即index = 0
+		vkGetDeviceQueue(m_LogicalDevice, PresentQueueIndice.value(), 0, &m_PresentQueue); // 这里只有一个queue即index = 0
 		std::cout << "Success to create logical device for Vulkan !" << "\n";
 	}
 
