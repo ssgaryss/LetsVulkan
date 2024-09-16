@@ -32,7 +32,7 @@ namespace VulkanTutorial {
 		setupDebugMessenger();
 		pickPhysicalDevice();
 		//createSurface();
-		//createLogicalDevice();
+		createLogicalDevice();
 		//createSwapChain();
 		//createImageViews();
 		//createRenderPass();
@@ -64,7 +64,7 @@ namespace VulkanTutorial {
 		//vkDestroyRenderPass
 		//vkDestroyImageView(device, imageView, nullptr);
 		//vkDestroySwapchainKHR
-		//vkDestroyDevice(device, nullptr);
+		vkDestroyDevice(m_LogicalDevice, nullptr);
 		//vkDestroySurfaceKHR(instance, surface, nullptr);
 		if (IsEnableValidationLayer) {
 			auto Func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_Instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -122,6 +122,23 @@ namespace VulkanTutorial {
 		return Score;
 	}
 
+	std::optional<uint32_t> Application::findGraphicQueueFamilies(VkPhysicalDevice vPhysicalDevice)
+	{
+		std::optional<uint32_t> QueueIndice = std::nullopt;
+		uint32_t queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, nullptr);
+		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, queueFamilies.data());
+
+		for (uint32_t i = 0; i < queueFamilyCount; ++i) {
+			if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+				QueueIndice = i;
+			if (QueueIndice.has_value())
+				break;
+		}
+		return QueueIndice;
+	}
+
 	void Application::createInstance()
 	{
 		std::cout << "Try to create Vulkan instance ..." << "\n";
@@ -162,7 +179,7 @@ namespace VulkanTutorial {
 		CreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		CreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
 			| VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
-			| VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
+			//| VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
 			| VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
 		CreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
 			| VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
@@ -208,6 +225,31 @@ namespace VulkanTutorial {
 		if (m_PhysicalDevice == VK_NULL_HANDLE)
 			throw std::runtime_error("Failed to find GPUs with Vulkan support!");
 		std::cout << "Success to pick physical device " << ChosenPhysicalDeviceProperties.deviceName << " for Vulkan !" << "\n";
+	}
+
+	void Application::createLogicalDevice()
+	{
+		std::cout << "Try to create logical device for Vulkan ..." << "\n";
+		std::optional<uint32_t> GraphicQueueIndice = findGraphicQueueFamilies(m_PhysicalDevice);
+		VkDeviceQueueCreateInfo DeviceQueueCreateInfo{};
+		DeviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		DeviceQueueCreateInfo.queueCount = 1;
+		DeviceQueueCreateInfo.queueFamilyIndex = GraphicQueueIndice.value();
+		float QueuePriorities = 1.0f; // 0.0f - 1.0f
+		DeviceQueueCreateInfo.pQueuePriorities = &QueuePriorities;
+
+
+		VkDeviceCreateInfo DeviceCreateInfo{};
+		DeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		DeviceCreateInfo.pQueueCreateInfos = &DeviceQueueCreateInfo;
+		DeviceCreateInfo.queueCreateInfoCount = 1;
+		VkPhysicalDeviceFeatures PhysicalDeviceFeatures{};
+		DeviceCreateInfo.pEnabledFeatures = &PhysicalDeviceFeatures;
+
+		if (vkCreateDevice(m_PhysicalDevice, &DeviceCreateInfo, nullptr, &m_LogicalDevice) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create logical device!");
+		vkGetDeviceQueue(m_LogicalDevice, GraphicQueueIndice.value(), 0, &m_GraphicsQueue); // 这里只有一个queue即index = 0
+		std::cout << "Success to create logical device for Vulkan !" << "\n";
 	}
 
 }
