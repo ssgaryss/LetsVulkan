@@ -33,6 +33,10 @@ project "VulkanTutorial"
         "GLM_FORCE_DEPTH_ZERO_TO_ONE"
     }
 
+    filter "system:windows"
+        systemversion "latest"
+        defines "VK_USE_PLATFORM_WIN32_KHR"
+
     filter "configurations:Debug"
         defines "VK_TUTORIAL_DEBUG"
         runtime "Debug"
