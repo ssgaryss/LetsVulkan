@@ -6,6 +6,8 @@
 #include <iostream>
 #include <format>
 #include <iomanip>
+#include <numeric>
+#include <algorithm>
 #include <unordered_map>
 #include <set>
 
@@ -35,7 +37,7 @@ namespace VulkanTutorial {
 		pickPhysicalDevice();
 		createSurface();
 		createLogicalDevice();
-		//createSwapChain();
+		createSwapChain();
 		//createImageViews();
 		//createRenderPass();
 		//createGraphicsPipeline();
@@ -66,7 +68,7 @@ namespace VulkanTutorial {
 		//vkDestroyPipelineLayout
 		//vkDestroyRenderPass
 		//vkDestroyImageView(device, imageView, nullptr);
-		//vkDestroySwapchainKHR
+		vkDestroySwapchainKHR(m_LogicalDevice, m_Swapchain, nullptr);
 		vkDestroyDevice(m_LogicalDevice, nullptr);
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
 		if (IsEnableValidationLayer) {
@@ -206,6 +208,74 @@ namespace VulkanTutorial {
 		return QueueIndice;
 	}
 
+	bool Application::checkRequiredQueueFamiliesSupport()
+	{
+		return m_GraphicsQueue && m_PresentQueue;
+	}
+
+	SwapChainSupportDetails Application::getSupportedSwapchainDetails(VkPhysicalDevice vPhysicalDevice, VkSurfaceKHR vSurface)
+	{
+		SwapChainSupportDetails SwapChainDetails;
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vPhysicalDevice, vSurface, &SwapChainDetails.m_SurfaceCapabilities);
+		uint32_t FormatCount = 0;
+		vkGetPhysicalDeviceSurfaceFormatsKHR(vPhysicalDevice, vSurface, &FormatCount, nullptr);
+		if (FormatCount > 0) {
+			SwapChainDetails.m_SurfaceFormats.resize(FormatCount);
+			vkGetPhysicalDeviceSurfaceFormatsKHR(vPhysicalDevice, vSurface, &FormatCount, SwapChainDetails.m_SurfaceFormats.data());
+		}
+		uint32_t PresentModesCount = 0;
+		vkGetPhysicalDeviceSurfacePresentModesKHR(vPhysicalDevice, vSurface, &PresentModesCount, nullptr);
+		if (PresentModesCount > 0) {
+			SwapChainDetails.m_PresentModes.resize(PresentModesCount);
+			vkGetPhysicalDeviceSurfacePresentModesKHR(vPhysicalDevice, vSurface, &PresentModesCount, SwapChainDetails.m_PresentModes.data());
+		}
+		return SwapChainDetails;
+	}
+
+	VkSurfaceFormatKHR Application::chooseSwapchainSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& vSurfaceFormats)
+	{
+		for (const auto& SurfaceFormat : vSurfaceFormats) {
+			if (SurfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
+				SurfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR)
+				return SurfaceFormat;
+		}
+		std::cerr << "Do not support the surface format (VK_FORMAT_B8G8R8A8_SRGB & VK_COLORSPACE_SRGB_NONLINEAR_KHR), use a random format!\n";
+		return vSurfaceFormats[0];
+	}
+
+	VkPresentModeKHR Application::chooseSwapchainPresentMode(const std::vector<VkPresentModeKHR>& vPresentModes)
+	{
+		for (const auto& PresentMode : vPresentModes) {
+			if (PresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+				return PresentMode;
+		}
+		std::cerr << "Do not support the present mode (VK_PRESENT_MODE_MAILBOX_KHR), use VK_PRESENT_MODE_FIFO_KHR instead!\n";
+		return VK_PRESENT_MODE_FIFO_KHR;
+	}
+
+	VkExtent2D Application::chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& vCapabilities)
+	{
+		if (vCapabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+			return vCapabilities.currentExtent; // 当currentExtent中wide和height都为0xFFFFFFFF时currentExtent的数值才是允许修改的！
+		}
+		else {
+			int Width, Height;
+			glfwGetFramebufferSize(m_Window, &Width, &Height);
+			VkExtent2D ActualExtent{
+				static_cast<uint32_t>(Width),
+				static_cast<uint32_t>(Height)
+			};
+			ActualExtent.width = std::clamp(ActualExtent.width, vCapabilities.minImageExtent.width, vCapabilities.maxImageExtent.width);
+			ActualExtent.height = std::clamp(ActualExtent.height, vCapabilities.minImageExtent.height, vCapabilities.maxImageExtent.height);
+			return ActualExtent;
+		}
+	}
+
+	bool Application::checkSwapchainSupport(const SwapChainSupportDetails& vSwapchainDetails)
+	{
+		return !vSwapchainDetails.m_SurfaceFormats.empty() && !vSwapchainDetails.m_PresentModes.empty();
+	}
+
 	void Application::createInstance()
 	{
 		std::cout << "Try to create Vulkan instance ..." << "\n";
@@ -226,7 +296,7 @@ namespace VulkanTutorial {
 		std::cout << "Required Vulkan instance extensions:\n";
 		auto RequiredInstanceExtensions = getRequiredIntanceExtensions();
 		showExtensionInformation(RequiredInstanceExtensions);
-		std::cout << "Satify the requirements ? " << std::boolalpha
+		std::cout << "Satisfy the instance extensions requirements? " << std::boolalpha
 			<< checkRequiredInstanceExtensionsSupport(RequiredInstanceExtensions) << std::noboolalpha << "\n";
 		InstanceInfo.enabledExtensionCount = static_cast<uint32_t>(RequiredInstanceExtensions.size());
 		InstanceInfo.ppEnabledExtensionNames = RequiredInstanceExtensions.data();
@@ -270,14 +340,14 @@ namespace VulkanTutorial {
 
 	void Application::createSurface()
 	{
-		std::cout << "Try to create suface of Win32 for Vulkan ..." << "\n";
+		std::cout << "Try to create surface of Win32 for Vulkan ..." << "\n";
 		VkWin32SurfaceCreateInfoKHR CreateInfo{};
 		CreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		CreateInfo.hwnd = glfwGetWin32Window(m_Window);
 		CreateInfo.hinstance = GetModuleHandle(nullptr);
-		if (vkCreateWin32SurfaceKHR(m_Instance, &CreateInfo, nullptr, &m_Surface))
+		if (vkCreateWin32SurfaceKHR(m_Instance, &CreateInfo, nullptr, &m_Surface) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create window surface!");
-		std::cout << "Success to create suface of Win32 for Vulkan !" << "\n";
+		std::cout << "Success to create surface of Win32 for Vulkan !" << "\n";
 	}
 
 	void Application::pickPhysicalDevice()
@@ -305,8 +375,6 @@ namespace VulkanTutorial {
 		vkGetPhysicalDeviceProperties(m_PhysicalDevice, &ChosenPhysicalDeviceProperties);
 		if (m_PhysicalDevice == VK_NULL_HANDLE)
 			throw std::runtime_error("Failed to find GPUs with Vulkan support!");
-
-		std::cout << "Available device instance extensions:\n";
 
 		std::cout << "Success to pick physical device " << ChosenPhysicalDeviceProperties.deviceName << " for Vulkan !" << "\n";
 	}
@@ -341,7 +409,7 @@ namespace VulkanTutorial {
 		std::cout << "Required device extensions:\n";
 		auto RequiredDeviceExtensions = getRequiredDeviceExtensions();
 		showExtensionInformation(RequiredDeviceExtensions);
-		std::cout << "Satify the requirements ? " << std::boolalpha
+		std::cout << "Satisfy the device extensions requirements? " << std::boolalpha
 			<< checkRequiredDeviceExtensionsSupport(m_PhysicalDevice, RequiredDeviceExtensions) << std::noboolalpha << "\n";
 		DeviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(RequiredDeviceExtensions.size());
 		DeviceCreateInfo.ppEnabledExtensionNames = RequiredDeviceExtensions.data();
@@ -350,7 +418,61 @@ namespace VulkanTutorial {
 			throw std::runtime_error("Failed to create logical device!");
 		vkGetDeviceQueue(m_LogicalDevice, GraphicQueueIndice.value(), 0, &m_GraphicsQueue); // 这里只有一个queue即index = 0
 		vkGetDeviceQueue(m_LogicalDevice, PresentQueueIndice.value(), 0, &m_PresentQueue); // 这里只有一个queue即index = 0
+		std::cout << "Statisfy the queue families requirements? " << std::boolalpha
+			<< checkRequiredQueueFamiliesSupport() << std::noboolalpha << "\n";
 		std::cout << "Success to create logical device for Vulkan !" << "\n";
+	}
+
+	void Application::createSwapChain()
+	{
+		std::cout << "Try to create swapchain for Vulkan ..." << "\n";
+		SwapChainSupportDetails SwapChainSupportDetails = getSupportedSwapchainDetails(m_PhysicalDevice, m_Surface);
+		VkSurfaceFormatKHR SurfaceFormat = chooseSwapchainSurfaceFormat(SwapChainSupportDetails.m_SurfaceFormats);
+		VkPresentModeKHR PresentMode = chooseSwapchainPresentMode(SwapChainSupportDetails.m_PresentModes);
+		VkExtent2D Extent = chooseSwapchainExtent(SwapChainSupportDetails.m_SurfaceCapabilities);
+		uint32_t ImageCount = SwapChainSupportDetails.m_SurfaceCapabilities.minImageCount + 1; // +1是不想等待驱动程序完成内部操作才能获取下一张图片，增加渲染效率
+		if (SwapChainSupportDetails.m_SurfaceCapabilities.minImageCount > 0
+			&& ImageCount > SwapChainSupportDetails.m_SurfaceCapabilities.maxImageCount)
+			ImageCount = SwapChainSupportDetails.m_SurfaceCapabilities.maxImageCount;
+
+		VkSwapchainCreateInfoKHR SwapchainCreateInfo{};
+		SwapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		SwapchainCreateInfo.surface = m_Surface;
+		SwapchainCreateInfo.minImageCount = ImageCount;
+		SwapchainCreateInfo.imageFormat = SurfaceFormat.format;
+		SwapchainCreateInfo.imageColorSpace = SurfaceFormat.colorSpace;
+		SwapchainCreateInfo.presentMode = PresentMode;
+		SwapchainCreateInfo.clipped = VK_TRUE; // true当渲染的部分在屏幕上被遮挡的部分不进行渲染，提高性能！
+		SwapchainCreateInfo.imageExtent = Extent;
+		SwapchainCreateInfo.imageArrayLayers = 1; // 通常都是1，除非如VR这种需要2张结果(左右眼)
+		SwapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		std::optional<uint32_t> GraphicQueueIndice = findQueueFamilies(m_PhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
+		std::optional<uint32_t> PresentQueueIndice = findPresentQueueFamilies(m_PhysicalDevice);
+		uint32_t QueueFamilyIndices[] = { GraphicQueueIndice.value(), PresentQueueIndice.value() };
+		if (GraphicQueueIndice.value() != PresentQueueIndice.value()) {
+			SwapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT; // 多个队列族共享
+			SwapchainCreateInfo.queueFamilyIndexCount = 2;
+			SwapchainCreateInfo.pQueueFamilyIndices = QueueFamilyIndices;
+		}
+		else {
+			SwapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE; // 单个队列族独享
+			SwapchainCreateInfo.queueFamilyIndexCount = 0;
+			SwapchainCreateInfo.pQueueFamilyIndices = nullptr;
+		}
+		SwapchainCreateInfo.preTransform = SwapChainSupportDetails.m_SurfaceCapabilities.currentTransform;
+		SwapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // 忽略Alpha，不需要与其他窗口物体进行混合
+		SwapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+
+		if (vkCreateSwapchainKHR(m_LogicalDevice, &SwapchainCreateInfo, nullptr, &m_Swapchain) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create swap chain!");
+
+		uint32_t SwapchainImageCount = 0;
+		vkGetSwapchainImagesKHR(m_LogicalDevice, m_Swapchain, &SwapchainImageCount, nullptr);
+		m_SwapchainImages.resize(SwapchainImageCount);
+		vkGetSwapchainImagesKHR(m_LogicalDevice, m_Swapchain, &SwapchainImageCount, m_SwapchainImages.data());
+		m_SwapchainFormat = SurfaceFormat.format;
+		m_SwapchainExtent = Extent;
+		std::cout << "Success to create swapchain for Vulkan !" << "\n";
 	}
 
 }
