@@ -228,10 +228,8 @@ namespace VulkanTutorial {
 		showExtensionInformation(RequiredInstanceExtensions);
 		std::cout << "Satify the requirements ? " << std::boolalpha
 			<< checkRequiredInstanceExtensionsSupport(RequiredInstanceExtensions) << std::noboolalpha << "\n";
-
-		auto Extension = getRequiredIntanceExtensions();
-		InstanceInfo.enabledExtensionCount = static_cast<uint32_t>(Extension.size());
-		InstanceInfo.ppEnabledExtensionNames = Extension.data();
+		InstanceInfo.enabledExtensionCount = static_cast<uint32_t>(RequiredInstanceExtensions.size());
+		InstanceInfo.ppEnabledExtensionNames = RequiredInstanceExtensions.data();
 
 		InstanceInfo.enabledLayerCount = 0;
 
@@ -316,20 +314,31 @@ namespace VulkanTutorial {
 	void Application::createLogicalDevice()
 	{
 		std::cout << "Try to create logical device for Vulkan ..." << "\n";
+		// Queues
+		std::vector<VkDeviceQueueCreateInfo> QueueCreateInfos;
+
 		std::optional<uint32_t> GraphicQueueIndice = findQueueFamilies(m_PhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
-		std::optional<uint32_t> PresentQueueIndice = findPresentQueueFamilies(m_PhysicalDevice);
 		VkDeviceQueueCreateInfo DeviceQueueCreateInfo{};
 		DeviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		DeviceQueueCreateInfo.queueCount = 1;
 		DeviceQueueCreateInfo.queueFamilyIndex = GraphicQueueIndice.value();
 		float QueuePriorities = 1.0f; // 0.0f - 1.0f
 		DeviceQueueCreateInfo.pQueuePriorities = &QueuePriorities;
+		QueueCreateInfos.emplace_back(DeviceQueueCreateInfo);
 
+		std::optional<uint32_t> PresentQueueIndice = findPresentQueueFamilies(m_PhysicalDevice);
+		VkDeviceQueueCreateInfo PresentQueueCreateInfo{};
+		DeviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		DeviceQueueCreateInfo.queueCount = 1;
+		DeviceQueueCreateInfo.queueFamilyIndex = PresentQueueIndice.value();
+		float QueuePriorities = 1.0f; // 0.0f - 1.0f
+		DeviceQueueCreateInfo.pQueuePriorities = &QueuePriorities;
+		QueueCreateInfos.emplace_back(PresentQueueCreateInfo);
 
 		VkDeviceCreateInfo DeviceCreateInfo{};
 		DeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		DeviceCreateInfo.pQueueCreateInfos = &DeviceQueueCreateInfo;
-		DeviceCreateInfo.queueCreateInfoCount = 1;
+		DeviceCreateInfo.pQueueCreateInfos = QueueCreateInfos.data();
+		DeviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(QueueCreateInfos.size());
 		VkPhysicalDeviceFeatures PhysicalDeviceFeatures{};
 		DeviceCreateInfo.pEnabledFeatures = &PhysicalDeviceFeatures;
 
