@@ -5,7 +5,9 @@
 #include <exception>
 #include <iostream>
 #include <format>
+#include <iomanip>
 #include <unordered_map>
+#include <set>
 
 namespace VulkanTutorial {
 
@@ -77,36 +79,80 @@ namespace VulkanTutorial {
 		std::cout << "Success to clean up !" << "\n";
 	}
 
-	void Application::showExtentionInformation()
+	std::vector<VkExtensionProperties> Application::getSupportedInstanceExtensions()
+	{
+		uint32_t ExtensionCount = 0;
+		vkEnumerateInstanceExtensionProperties(nullptr, &ExtensionCount, nullptr);
+
+		// 分配 VkExtensionProperties 数组来存储扩展信息
+		std::vector<VkExtensionProperties> Extensions(ExtensionCount);
+		// 第二次调用：获取扩展详细信息
+		vkEnumerateInstanceExtensionProperties(nullptr, &ExtensionCount, Extensions.data());
+
+		return Extensions;
+	}
+
+	void Application::showExtensionInformation(const std::vector<VkExtensionProperties>& vExtensions)
+	{
+		for (const auto& Extension : vExtensions)
+			std::cout << std::format("\t{} (version {})\n", Extension.extensionName, Extension.specVersion);
+	}
+
+	void Application::showExtensionInformation(const std::vector<const char*>& vExtensions)
+	{
+		for (const auto& Extension : vExtensions)
+			std::cout << std::format("\t{} (version {})\n", Extension, Extension);
+	}
+
+	std::vector<VkExtensionProperties> Application::getSupportedDeviceExtensions(VkPhysicalDevice vPhysicalDevice)
 	{
 		uint32_t extensionCount = 0;
-		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-
-		std::cout << extensionCount << " extensions supported\n";
+		vkEnumerateDeviceExtensionProperties(vPhysicalDevice, nullptr, &extensionCount, nullptr);
 
 		// 分配 VkExtensionProperties 数组来存储扩展信息
 		std::vector<VkExtensionProperties> extensions(extensionCount);
 		// 第二次调用：获取扩展详细信息
-		vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensions.data());
-
-		// 输出所有扩展名称
-		std::cout << "Available Vulkan instance extensions:\n";
-		for (uint32_t i = 0; i < extensionCount; i++) {
-			std::cout << std::format("\t{} (version {})\n", extensions[i].extensionName, extensions[i].specVersion);
-		}
+		vkEnumerateDeviceExtensionProperties(vPhysicalDevice, nullptr, &extensionCount, extensions.data());
+		return extensions;
 	}
 
-	std::vector<const char*> Application::getRequiredExtentions()
+	std::vector<const char*> Application::getRequiredDeviceExtensions()
 	{
-		uint32_t GLFWExtentionCount = 0;
-		const char** GLFWExtentions;
-		GLFWExtentions = glfwGetRequiredInstanceExtensions(&GLFWExtentionCount);
+		std::vector<const char*> RequiredDeviceExtensions{
+			VK_KHR_SWAPCHAIN_EXTENSION_NAME
+		};
+		return RequiredDeviceExtensions;
+	}
 
-		std::vector<const char*> Extentions(GLFWExtentions, GLFWExtentions + GLFWExtentionCount);
+	bool Application::checkRequiredDeviceExtensionsSupport(VkPhysicalDevice vPhysicalDevice, const std::vector<const char*>& vRequiredExtensions)
+	{
+		auto SupportedExtensions = getSupportedDeviceExtensions(vPhysicalDevice);
+		std::set<std::string> RequiredExtensions(vRequiredExtensions.begin(), vRequiredExtensions.end());
+		for (const auto& Extension : SupportedExtensions)
+			RequiredExtensions.erase(Extension.extensionName);
+		return RequiredExtensions.empty();
+	}
+
+	std::vector<const char*> Application::getRequiredIntanceExtensions()
+	{
+		// GLFW extentions
+		uint32_t GLFWExtensionCount = 0;
+		const char** GLFWExtensions;
+		GLFWExtensions = glfwGetRequiredInstanceExtensions(&GLFWExtensionCount);
+		std::vector<const char*> Extentions(GLFWExtensions, GLFWExtensions + GLFWExtensionCount);
+		// Validation Layer extentions
 		if (IsEnableValidationLayer)
 			Extentions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-
 		return Extentions;
+	}
+
+	bool Application::checkRequiredInstanceExtensionsSupport(const std::vector<const char*>& vRequiredExtensions)
+	{
+		auto SupportedExtensions = getSupportedInstanceExtensions();
+		std::set<std::string> RequiredExtensions(vRequiredExtensions.begin(), vRequiredExtensions.end());
+		for (const auto& Extension : SupportedExtensions)
+			RequiredExtensions.erase(Extension.extensionName);
+		return RequiredExtensions.empty();
 	}
 
 	uint32_t Application::ratePhysicalDevice(VkPhysicalDevice vPhysicalDevice)
@@ -175,13 +221,17 @@ namespace VulkanTutorial {
 		InstanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		InstanceInfo.pApplicationInfo = &AppInfo;
 
-		showExtentionInformation();
-		auto Extension = getRequiredExtentions();
+		std::cout << "Available Vulkan instance extensions:\n";
+		showExtensionInformation(getSupportedInstanceExtensions());
+		std::cout << "Required Vulkan instance extensions:\n";
+		auto RequiredInstanceExtensions = getRequiredIntanceExtensions();
+		showExtensionInformation(RequiredInstanceExtensions);
+		std::cout << "Satify the requirements ? " << std::boolalpha
+			<< checkRequiredInstanceExtensionsSupport(RequiredInstanceExtensions) << std::noboolalpha << "\n";
+
+		auto Extension = getRequiredIntanceExtensions();
 		InstanceInfo.enabledExtensionCount = static_cast<uint32_t>(Extension.size());
 		InstanceInfo.ppEnabledExtensionNames = Extension.data();
-		std::cout << "Require " << InstanceInfo.enabledExtensionCount << " extensions\n";
-		for (const auto& it : Extension)
-			std::cout << std::format("\t{}\n", it);
 
 		InstanceInfo.enabledLayerCount = 0;
 
@@ -257,6 +307,9 @@ namespace VulkanTutorial {
 		vkGetPhysicalDeviceProperties(m_PhysicalDevice, &ChosenPhysicalDeviceProperties);
 		if (m_PhysicalDevice == VK_NULL_HANDLE)
 			throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+
+		std::cout << "Available device instance extensions:\n";
+
 		std::cout << "Success to pick physical device " << ChosenPhysicalDeviceProperties.deviceName << " for Vulkan !" << "\n";
 	}
 
@@ -279,6 +332,14 @@ namespace VulkanTutorial {
 		DeviceCreateInfo.queueCreateInfoCount = 1;
 		VkPhysicalDeviceFeatures PhysicalDeviceFeatures{};
 		DeviceCreateInfo.pEnabledFeatures = &PhysicalDeviceFeatures;
+
+		std::cout << "Available device extensions:\n";
+		showExtensionInformation(getSupportedDeviceExtensions(m_PhysicalDevice));
+		std::cout << "Required device extensions:\n";
+		auto RequiredDeviceExtensions = getRequiredDeviceExtensions();
+		showExtensionInformation(RequiredDeviceExtensions);
+		std::cout << "Satify the requirements ? " << std::boolalpha
+			<< checkRequiredDeviceExtensionsSupport(m_PhysicalDevice, RequiredDeviceExtensions) << std::noboolalpha << "\n";
 
 		if (vkCreateDevice(m_PhysicalDevice, &DeviceCreateInfo, nullptr, &m_LogicalDevice) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create logical device!");

@@ -19,19 +19,32 @@ namespace VulkanTutorial {
 		void run();
 
 	private:
+		// critical
 		void initWindow();
 		void initVulkan();
 		void mainLoop();
 		void cleanup();
-
+	private:
+		// initVulkan
 		void createInstance();
 		void setupDebugMessenger();
 		void createSurface();
 		void pickPhysicalDevice();
 		void createLogicalDevice();
 	private:
-		void showExtentionInformation();
-		std::vector<const char*> getRequiredExtentions();
+		// Extensions
+		void showExtensionInformation(const std::vector<VkExtensionProperties>& vExtensions);
+		void showExtensionInformation(const std::vector<const char*>& vExtensions);
+
+		std::vector<VkExtensionProperties> getSupportedInstanceExtensions();
+		std::vector<const char*> getRequiredIntanceExtensions();
+		bool checkRequiredInstanceExtensionsSupport(const std::vector<const char*>& vRequiredExtensions);
+
+		std::vector<VkExtensionProperties> getSupportedDeviceExtensions(VkPhysicalDevice vPhysicalDevice);
+		std::vector<const char*> getRequiredDeviceExtensions();
+		bool checkRequiredDeviceExtensionsSupport(VkPhysicalDevice vPhysicalDevice, const std::vector<const char*>& vRequiredExtensions);
+	private:
+		// others
 		uint32_t ratePhysicalDevice(VkPhysicalDevice vPhysicalDevice);
 		std::optional<uint32_t> findQueueFamilies(VkPhysicalDevice vPhysicalDevice, VkQueueFlagBits vFlag);
 		std::optional<uint32_t> findPresentQueueFamilies(VkPhysicalDevice vPhysicalDevice);  // 查询支持present的QueueFamily
