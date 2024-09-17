@@ -316,24 +316,18 @@ namespace VulkanTutorial {
 		std::cout << "Try to create logical device for Vulkan ..." << "\n";
 		// Queues
 		std::vector<VkDeviceQueueCreateInfo> QueueCreateInfos;
-
 		std::optional<uint32_t> GraphicQueueIndice = findQueueFamilies(m_PhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
-		VkDeviceQueueCreateInfo DeviceQueueCreateInfo{};
-		DeviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		DeviceQueueCreateInfo.queueCount = 1;
-		DeviceQueueCreateInfo.queueFamilyIndex = GraphicQueueIndice.value();
-		float QueuePriorities = 1.0f; // 0.0f - 1.0f
-		DeviceQueueCreateInfo.pQueuePriorities = &QueuePriorities;
-		QueueCreateInfos.emplace_back(DeviceQueueCreateInfo);
-
 		std::optional<uint32_t> PresentQueueIndice = findPresentQueueFamilies(m_PhysicalDevice);
-		VkDeviceQueueCreateInfo PresentQueueCreateInfo{};
-		DeviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		DeviceQueueCreateInfo.queueCount = 1;
-		DeviceQueueCreateInfo.queueFamilyIndex = PresentQueueIndice.value();
+		std::set<uint32_t> RequiredQueueFamiliesIndicies{ GraphicQueueIndice.value(), PresentQueueIndice.value() };
 		float QueuePriorities = 1.0f; // 0.0f - 1.0f
-		DeviceQueueCreateInfo.pQueuePriorities = &QueuePriorities;
-		QueueCreateInfos.emplace_back(PresentQueueCreateInfo);
+		for (auto Indice : RequiredQueueFamiliesIndicies) {
+			VkDeviceQueueCreateInfo QueueCreateInfo{};
+			QueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			QueueCreateInfo.queueCount = 1;
+			QueueCreateInfo.queueFamilyIndex = Indice;
+			QueueCreateInfo.pQueuePriorities = &QueuePriorities;
+			QueueCreateInfos.emplace_back(QueueCreateInfo);
+		}
 
 		VkDeviceCreateInfo DeviceCreateInfo{};
 		DeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -349,6 +343,8 @@ namespace VulkanTutorial {
 		showExtensionInformation(RequiredDeviceExtensions);
 		std::cout << "Satify the requirements ? " << std::boolalpha
 			<< checkRequiredDeviceExtensionsSupport(m_PhysicalDevice, RequiredDeviceExtensions) << std::noboolalpha << "\n";
+		DeviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(RequiredDeviceExtensions.size());
+		DeviceCreateInfo.ppEnabledExtensionNames = RequiredDeviceExtensions.data();
 
 		if (vkCreateDevice(m_PhysicalDevice, &DeviceCreateInfo, nullptr, &m_LogicalDevice) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create logical device!");
