@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <numeric>
 #include <algorithm>
+#include <fstream>
 #include <unordered_map>
 #include <set>
 
@@ -40,7 +41,7 @@ namespace VulkanTutorial {
 		createSwapChain();
 		createImageViews();
 		//createRenderPass();
-		//createGraphicsPipeline();
+		createGraphicsPipeline();
 		//createFramebuffers();
 		//createCommandPool();
 		//createCommandBuffer();
@@ -64,7 +65,7 @@ namespace VulkanTutorial {
 		//vkDestroyFence(device, inFlightFence, nullptr);
 		//vkDestroyCommandPool
 		//vkDestroyFramebuffer
-		//vkDestroyPipeline
+		vkDestroyPipeline(m_LogicalDevice, m_Pipeline, nullptr);
 		//vkDestroyPipelineLayout
 		//vkDestroyRenderPass
 		for (const auto& View : m_SwapchainImageViews)
@@ -275,6 +276,33 @@ namespace VulkanTutorial {
 	bool Application::checkSwapchainSupport(const SwapChainSupportDetails& vSwapchainDetails)
 	{
 		return !vSwapchainDetails.m_SurfaceFormats.empty() && !vSwapchainDetails.m_PresentModes.empty();
+	}
+
+	std::vector<char> Application::readFile(const std::filesystem::path& vPath)
+	{
+		std::ifstream InFileStream(vPath, std::ios_base::ate | std::ios_base::binary);
+		if (!InFileStream)
+			throw std::runtime_error(std::format(R"(Fail to open the file at "{0}".)", vPath.string()));
+		size_t FileSize = static_cast<size_t>(InFileStream.tellg());
+		std::vector<char> Code(FileSize);
+		InFileStream.seekg(0);
+		InFileStream.read(Code.data(), FileSize);
+		InFileStream.close();
+		return Code;
+	}
+
+	VkShaderModule Application::createShaderModule(const std::vector<char>& vCode)
+	{
+		VkShaderModuleCreateInfo ShaderModuleCreateInfo{};
+		ShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		ShaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(vCode.data());
+		ShaderModuleCreateInfo.codeSize = vCode.size();
+
+		VkShaderModule ShaderModule;
+		if (vkCreateShaderModule(m_LogicalDevice, &ShaderModuleCreateInfo, nullptr, &ShaderModule) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create shader module!");
+		std::cout << "Success to create a shader module." << "\n";
+		return ShaderModule;
 	}
 
 	void Application::createInstance()
@@ -500,6 +528,19 @@ namespace VulkanTutorial {
 			std::cout << std::format("Success to create SwapchainImageView[{0}].", i) << "\n";
 		}
 		std::cout << "Success to create swapchain image views !" << "\n";
+	}
+
+	void Application::createGraphicsPipeline()
+	{
+		std::cout << "Try to create a pipeline ..." << "\n";
+		auto VertexShaderCode = readFile("resources/shaders/spir-v/09_shader_base_vert.spv");
+		auto FragmentShaderCode = readFile("resources/shaders/spir-v/09_shader_base_frag.spv");
+		VkShaderModule VertexShaderModule = createShaderModule(VertexShaderCode);
+		VkShaderModule FragmentShaderModule = createShaderModule(FragmentShaderCode);
+
+		vkDestroyShaderModule(m_LogicalDevice, FragmentShaderModule, nullptr);
+		vkDestroyShaderModule(m_LogicalDevice, VertexShaderModule, nullptr);
+		std::cout << "Success to create a pipeline !" << "\n";
 	}
 
 }
