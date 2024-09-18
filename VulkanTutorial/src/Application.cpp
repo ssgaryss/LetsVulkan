@@ -538,6 +538,22 @@ namespace VulkanTutorial {
 		VkShaderModule VertexShaderModule = createShaderModule(VertexShaderCode);
 		VkShaderModule FragmentShaderModule = createShaderModule(FragmentShaderCode);
 
+		VkPipelineShaderStageCreateInfo VertexShaderStageCreateInfo{};
+		VertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		VertexShaderStageCreateInfo.pSpecializationInfo = nullptr; // 可以指定shader中的常量值避免渲染时再赋值，提高效率！
+		VertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		VertexShaderStageCreateInfo.module = VertexShaderModule;
+		VertexShaderStageCreateInfo.pName = "main"; // shader主函数名
+
+		VkPipelineShaderStageCreateInfo FragmentShaderStageCreateInfo{};
+		FragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		FragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+		FragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		FragmentShaderStageCreateInfo.module = FragmentShaderModule;
+		FragmentShaderStageCreateInfo.pName = "main";
+
+		VkPipelineShaderStageCreateInfo ShaderStageCreateInfos[] = { VertexShaderStageCreateInfo, FragmentShaderStageCreateInfo };
+
 		vkDestroyShaderModule(m_LogicalDevice, FragmentShaderModule, nullptr);
 		vkDestroyShaderModule(m_LogicalDevice, VertexShaderModule, nullptr);
 		std::cout << "Success to create a pipeline !" << "\n";
