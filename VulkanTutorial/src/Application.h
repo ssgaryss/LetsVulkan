@@ -38,6 +38,7 @@ namespace VulkanTutorial {
 		void pickPhysicalDevice();
 		void createLogicalDevice();
 		void createSwapChain();
+		void createImageViews();
 	private:
 		// Extensions
 		void showExtensionInformation(const std::vector<VkExtensionProperties>& vExtensions);
@@ -75,6 +76,7 @@ namespace VulkanTutorial {
 		VkDevice m_LogicalDevice = VK_NULL_HANDLE;
 		VkSwapchainKHR m_Swapchain = VK_NULL_HANDLE;
 		std::vector<VkImage> m_SwapchainImages;
+		std::vector<VkImageView> m_SwapchainImageViews;
 		VkFormat m_SwapchainFormat = VK_FORMAT_UNDEFINED;
 		VkExtent2D m_SwapchainExtent;
 

@@ -38,7 +38,7 @@ namespace VulkanTutorial {
 		createSurface();
 		createLogicalDevice();
 		createSwapChain();
-		//createImageViews();
+		createImageViews();
 		//createRenderPass();
 		//createGraphicsPipeline();
 		//createFramebuffers();
@@ -67,7 +67,8 @@ namespace VulkanTutorial {
 		//vkDestroyPipeline
 		//vkDestroyPipelineLayout
 		//vkDestroyRenderPass
-		//vkDestroyImageView(device, imageView, nullptr);
+		for (const auto& View : m_SwapchainImageViews)
+			vkDestroyImageView(m_LogicalDevice, View, nullptr);
 		vkDestroySwapchainKHR(m_LogicalDevice, m_Swapchain, nullptr);
 		vkDestroyDevice(m_LogicalDevice, nullptr);
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
@@ -473,6 +474,32 @@ namespace VulkanTutorial {
 		m_SwapchainFormat = SurfaceFormat.format;
 		m_SwapchainExtent = Extent;
 		std::cout << "Success to create swapchain for Vulkan !" << "\n";
+	}
+
+	void Application::createImageViews()
+	{
+		std::cout << "Try to create swapchain image views ..." << "\n";
+		m_SwapchainImageViews.resize(m_SwapchainImages.size());
+		for (size_t i = 0; i < m_SwapchainImageViews.size(); ++i) {
+			VkImageViewCreateInfo ImageViewCreateInfo{};
+			ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			ImageViewCreateInfo.image = m_SwapchainImages[i];
+			ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			ImageViewCreateInfo.format = m_SwapchainFormat;
+			ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+			ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+			ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+			ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; // 即不进行映射置换，a通道就是image的a通道数据
+			ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			ImageViewCreateInfo.subresourceRange.levelCount = 1;
+			ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			ImageViewCreateInfo.subresourceRange.layerCount = 1;
+			if (vkCreateImageView(m_LogicalDevice, &ImageViewCreateInfo, nullptr, &m_SwapchainImageViews[i]) != VK_SUCCESS)
+				throw std::runtime_error("Failed to create image views!");
+			std::cout << std::format("Success to create SwapchainImageView[{0}].", i) << "\n";
+		}
+		std::cout << "Success to create swapchain image views !" << "\n";
 	}
 
 }
