@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <numeric>
 #include <algorithm>
+#include <fstream>
 #include <unordered_map>
 #include <set>
 
@@ -38,9 +39,9 @@ namespace VulkanTutorial {
 		createSurface();
 		createLogicalDevice();
 		createSwapChain();
-		//createImageViews();
+		createImageViews();
 		//createRenderPass();
-		//createGraphicsPipeline();
+		createGraphicsPipeline();
 		//createFramebuffers();
 		//createCommandPool();
 		//createCommandBuffer();
@@ -64,10 +65,11 @@ namespace VulkanTutorial {
 		//vkDestroyFence(device, inFlightFence, nullptr);
 		//vkDestroyCommandPool
 		//vkDestroyFramebuffer
-		//vkDestroyPipeline
+		vkDestroyPipeline(m_LogicalDevice, m_Pipeline, nullptr);
 		//vkDestroyPipelineLayout
 		//vkDestroyRenderPass
-		//vkDestroyImageView(device, imageView, nullptr);
+		for (const auto& View : m_SwapchainImageViews)
+			vkDestroyImageView(m_LogicalDevice, View, nullptr);
 		vkDestroySwapchainKHR(m_LogicalDevice, m_Swapchain, nullptr);
 		vkDestroyDevice(m_LogicalDevice, nullptr);
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
@@ -276,6 +278,33 @@ namespace VulkanTutorial {
 		return !vSwapchainDetails.m_SurfaceFormats.empty() && !vSwapchainDetails.m_PresentModes.empty();
 	}
 
+	std::vector<char> Application::readFile(const std::filesystem::path& vPath)
+	{
+		std::ifstream InFileStream(vPath, std::ios_base::ate | std::ios_base::binary);
+		if (!InFileStream)
+			throw std::runtime_error(std::format(R"(Fail to open the file at "{0}".)", vPath.string()));
+		size_t FileSize = static_cast<size_t>(InFileStream.tellg());
+		std::vector<char> Code(FileSize);
+		InFileStream.seekg(0);
+		InFileStream.read(Code.data(), FileSize);
+		InFileStream.close();
+		return Code;
+	}
+
+	VkShaderModule Application::createShaderModule(const std::vector<char>& vCode)
+	{
+		VkShaderModuleCreateInfo ShaderModuleCreateInfo{};
+		ShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		ShaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(vCode.data());
+		ShaderModuleCreateInfo.codeSize = vCode.size();
+
+		VkShaderModule ShaderModule;
+		if (vkCreateShaderModule(m_LogicalDevice, &ShaderModuleCreateInfo, nullptr, &ShaderModule) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create shader module!");
+		std::cout << "Success to create a shader module." << "\n";
+		return ShaderModule;
+	}
+
 	void Application::createInstance()
 	{
 		std::cout << "Try to create Vulkan instance ..." << "\n";
@@ -473,6 +502,61 @@ namespace VulkanTutorial {
 		m_SwapchainFormat = SurfaceFormat.format;
 		m_SwapchainExtent = Extent;
 		std::cout << "Success to create swapchain for Vulkan !" << "\n";
+	}
+
+	void Application::createImageViews()
+	{
+		std::cout << "Try to create swapchain image views ..." << "\n";
+		m_SwapchainImageViews.resize(m_SwapchainImages.size());
+		for (size_t i = 0; i < m_SwapchainImageViews.size(); ++i) {
+			VkImageViewCreateInfo ImageViewCreateInfo{};
+			ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			ImageViewCreateInfo.image = m_SwapchainImages[i];
+			ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			ImageViewCreateInfo.format = m_SwapchainFormat;
+			ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+			ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+			ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+			ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; // 即不进行映射置换，a通道就是image的a通道数据
+			ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			ImageViewCreateInfo.subresourceRange.levelCount = 1;
+			ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			ImageViewCreateInfo.subresourceRange.layerCount = 1;
+			if (vkCreateImageView(m_LogicalDevice, &ImageViewCreateInfo, nullptr, &m_SwapchainImageViews[i]) != VK_SUCCESS)
+				throw std::runtime_error("Failed to create image views!");
+			std::cout << std::format("Success to create SwapchainImageView[{0}].", i) << "\n";
+		}
+		std::cout << "Success to create swapchain image views !" << "\n";
+	}
+
+	void Application::createGraphicsPipeline()
+	{
+		std::cout << "Try to create a pipeline ..." << "\n";
+		auto VertexShaderCode = readFile("resources/shaders/spir-v/09_shader_base_vert.spv");
+		auto FragmentShaderCode = readFile("resources/shaders/spir-v/09_shader_base_frag.spv");
+		VkShaderModule VertexShaderModule = createShaderModule(VertexShaderCode);
+		VkShaderModule FragmentShaderModule = createShaderModule(FragmentShaderCode);
+
+		VkPipelineShaderStageCreateInfo VertexShaderStageCreateInfo{};
+		VertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		VertexShaderStageCreateInfo.pSpecializationInfo = nullptr; // 可以指定shader中的常量值避免渲染时再赋值，提高效率！
+		VertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		VertexShaderStageCreateInfo.module = VertexShaderModule;
+		VertexShaderStageCreateInfo.pName = "main"; // shader主函数名
+
+		VkPipelineShaderStageCreateInfo FragmentShaderStageCreateInfo{};
+		FragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		FragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+		FragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		FragmentShaderStageCreateInfo.module = FragmentShaderModule;
+		FragmentShaderStageCreateInfo.pName = "main";
+
+		VkPipelineShaderStageCreateInfo ShaderStageCreateInfos[] = { VertexShaderStageCreateInfo, FragmentShaderStageCreateInfo };
+
+		vkDestroyShaderModule(m_LogicalDevice, FragmentShaderModule, nullptr);
+		vkDestroyShaderModule(m_LogicalDevice, VertexShaderModule, nullptr);
+		std::cout << "Success to create a pipeline !" << "\n";
 	}
 
 }

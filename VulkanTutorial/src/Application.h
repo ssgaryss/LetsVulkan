@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <vector>
 #include <optional>
+#include <filesystem>
 
 
 namespace VulkanTutorial {
@@ -38,6 +39,8 @@ namespace VulkanTutorial {
 		void pickPhysicalDevice();
 		void createLogicalDevice();
 		void createSwapChain();
+		void createImageViews();
+		void createGraphicsPipeline();
 	private:
 		// Extensions
 		void showExtensionInformation(const std::vector<VkExtensionProperties>& vExtensions);
@@ -64,6 +67,10 @@ namespace VulkanTutorial {
 		VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& vCapabilities);
 		bool checkSwapchainSupport(const SwapChainSupportDetails& vSwapchainDetails);
 	private:
+		// Shader
+		std::vector<char> readFile(const std::filesystem::path& vPath);
+		VkShaderModule createShaderModule(const std::vector<char>& vCode);
+	private:
 		const uint32_t m_Width = 800;
 		const uint32_t m_Height = 600;
 		GLFWwindow* m_Window = nullptr;
@@ -75,8 +82,10 @@ namespace VulkanTutorial {
 		VkDevice m_LogicalDevice = VK_NULL_HANDLE;
 		VkSwapchainKHR m_Swapchain = VK_NULL_HANDLE;
 		std::vector<VkImage> m_SwapchainImages;
+		std::vector<VkImageView> m_SwapchainImageViews;
 		VkFormat m_SwapchainFormat = VK_FORMAT_UNDEFINED;
 		VkExtent2D m_SwapchainExtent;
+		VkPipeline m_Pipeline = VK_NULL_HANDLE;
 
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue = VK_NULL_HANDLE;
