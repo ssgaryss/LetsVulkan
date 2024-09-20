@@ -40,6 +40,7 @@ namespace VulkanTutorial {
 		void createLogicalDevice();
 		void createSwapChain();
 		void createImageViews();
+		void createRenderPass();
 		void createGraphicsPipeline();
 	private:
 		// Extensions
@@ -85,6 +86,7 @@ namespace VulkanTutorial {
 		std::vector<VkImageView> m_SwapchainImageViews;
 		VkFormat m_SwapchainFormat = VK_FORMAT_UNDEFINED;
 		VkExtent2D m_SwapchainExtent;
+		VkRenderPass m_RenderPass = VK_NULL_HANDLE;
 		VkPipelineLayout m_PipelineLayout = VK_NULL_HANDLE;
 		VkPipeline m_Pipeline = VK_NULL_HANDLE;
 

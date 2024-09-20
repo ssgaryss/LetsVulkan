@@ -40,7 +40,7 @@ namespace VulkanTutorial {
 		createLogicalDevice();
 		createSwapChain();
 		createImageViews();
-		//createRenderPass();
+		createRenderPass();
 		createGraphicsPipeline();
 		//createFramebuffers();
 		//createCommandPool();
@@ -66,8 +66,8 @@ namespace VulkanTutorial {
 		//vkDestroyCommandPool
 		//vkDestroyFramebuffer
 		vkDestroyPipeline(m_LogicalDevice, m_Pipeline, nullptr);
-		//vkDestroyPipelineLayout
-		//vkDestroyRenderPass
+		vkDestroyPipelineLayout(m_LogicalDevice, m_PipelineLayout, nullptr);
+		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
 		for (const auto& View : m_SwapchainImageViews)
 			vkDestroyImageView(m_LogicalDevice, View, nullptr);
 		vkDestroySwapchainKHR(m_LogicalDevice, m_Swapchain, nullptr);
@@ -528,6 +528,43 @@ namespace VulkanTutorial {
 			std::cout << std::format("Success to create SwapchainImageView[{0}].", i) << "\n";
 		}
 		std::cout << "Success to create swapchain image views !" << "\n";
+	}
+
+	void Application::createRenderPass()
+	{
+		std::cout << "Try to create a render pass ..." << "\n";
+		VkAttachmentDescription AttachmentDescription{};
+		AttachmentDescription.format = m_SwapchainFormat;
+		AttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		AttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;  // 加载时先clear
+		AttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		AttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		AttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // 这里我们不care
+		AttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // VkImageLayout (dont care)
+		AttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // 用于交换链显示
+		
+		// Subpasses and Attachment references
+		VkAttachmentReference AttachmentReference;
+		AttachmentReference.attachment = 0;
+		AttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription Subpass{}; // 这里我们只需要一个subpass渲染三角形
+		Subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		Subpass.colorAttachmentCount = 1;
+		Subpass.pColorAttachments = &AttachmentReference;
+
+		// RenderPass
+		VkRenderPassCreateInfo RenderPassCreateInfo{};
+		RenderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		RenderPassCreateInfo.attachmentCount = 1;
+		RenderPassCreateInfo.pAttachments = &AttachmentDescription;
+		RenderPassCreateInfo.subpassCount = 1;
+		RenderPassCreateInfo.pSubpasses = &Subpass;
+
+		if (vkCreateRenderPass(m_LogicalDevice, &RenderPassCreateInfo, nullptr, &m_RenderPass) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create render pass!");
+
+		std::cout << "Success to create a render pass !" << "\n";
 	}
 
 	void Application::createGraphicsPipeline()
