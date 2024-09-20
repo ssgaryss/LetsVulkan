@@ -554,6 +554,111 @@ namespace VulkanTutorial {
 
 		VkPipelineShaderStageCreateInfo ShaderStageCreateInfos[] = { VertexShaderStageCreateInfo, FragmentShaderStageCreateInfo };
 
+		// VertexInput
+		VkPipelineVertexInputStateCreateInfo VertexInputStateCreateInfo{};
+		VertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		VertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+		VertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr; // 结构体包含：绑定信息，顶点或实例作为步长等
+		VertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+		VertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr; //结构体包含：顶点属性布局、格式、偏移量等
+
+		// Input Assembly
+		VkPipelineInputAssemblyStateCreateInfo InputAssemblyStateCreateInfo{};
+		InputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		InputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		InputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+
+		// Dynamic State
+		std::vector<VkDynamicState> RequiredDynamicStates{
+			VK_DYNAMIC_STATE_VIEWPORT,
+			VK_DYNAMIC_STATE_SCISSOR
+		};
+		VkPipelineDynamicStateCreateInfo DynamicStateCreateInfo{};
+		DynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		DynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(RequiredDynamicStates.size());
+		DynamicStateCreateInfo.pDynamicStates = RequiredDynamicStates.data();
+
+		// Viewport and Scissors
+		VkViewport Viewport;
+		Viewport.x = 0;
+		Viewport.y = 0;
+		Viewport.width = static_cast<float>(m_SwapchainExtent.width);
+		Viewport.height = static_cast<float>(m_SwapchainExtent.height);
+		Viewport.minDepth = 0.0f;
+		Viewport.maxDepth = 1.0f;
+		VkRect2D Scissor;
+		Scissor.offset = VkOffset2D(0, 0);
+		Scissor.extent = m_SwapchainExtent;
+		VkPipelineViewportStateCreateInfo ViewportStateCreateInfo{};
+		ViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+		ViewportStateCreateInfo.pScissors = &Scissor;
+		ViewportStateCreateInfo.viewportCount = 1;
+		ViewportStateCreateInfo.scissorCount = 1; // 有些GPU支持有多个Viewport和Scissor
+		ViewportStateCreateInfo.pViewports = nullptr;
+		ViewportStateCreateInfo.pScissors = nullptr; // 这里不需要设置，因为这两个已经指明为dynamic state，可以之后在运行时指定
+
+		// Rasterizer
+		VkPipelineRasterizationStateCreateInfo RasterizationStateCreateInfo{};
+		RasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		RasterizationStateCreateInfo.depthClampEnable = VK_FALSE; // 超出视锥部分是否进行clamp
+		RasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE; // 是否不进行光栅化
+		RasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+		RasterizationStateCreateInfo.lineWidth = 1.0f;
+		RasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+		RasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; // 逆时针为正面
+		RasterizationStateCreateInfo.depthBiasEnable = VK_FALSE; // 不进行深度偏移
+		RasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+		RasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+		RasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+		//Depth = Depth + depthBiasConstantFactor * constant + depthBiasSlopeFactor * slope (计算公式)
+
+		// Mutisampling
+		VkPipelineMultisampleStateCreateInfo MultisamplingCreateInfo{};
+		MultisamplingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		MultisamplingCreateInfo.sampleShadingEnable = VK_FALSE; // 是否超采样
+		MultisamplingCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		MultisamplingCreateInfo.minSampleShading = 1.0f;
+		MultisamplingCreateInfo.pSampleMask = nullptr;
+		MultisamplingCreateInfo.alphaToCoverageEnable = VK_FALSE;
+		MultisamplingCreateInfo.alphaToOneEnable = VK_FALSE;
+
+		// Depth and Stencil testing
+		VkPipelineDepthStencilStateCreateInfo DepthStencilStateCreateInfo{}; // 暂时不用
+
+		// Color Blending
+		VkPipelineColorBlendAttachmentState ColorBlendAttachment_1;
+		ColorBlendAttachment_1.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
+			| VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		ColorBlendAttachment_1.blendEnable = VK_TRUE;  // 这里用的alpha blending
+		ColorBlendAttachment_1.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		ColorBlendAttachment_1.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		ColorBlendAttachment_1.colorBlendOp = VK_BLEND_OP_ADD;
+		ColorBlendAttachment_1.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		ColorBlendAttachment_1.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		ColorBlendAttachment_1.alphaBlendOp = VK_BLEND_OP_ADD;
+
+		VkPipelineColorBlendStateCreateInfo ColorBlendStateCreateInfo{};
+		ColorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		ColorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+		ColorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+		ColorBlendStateCreateInfo.attachmentCount = 1;
+		ColorBlendStateCreateInfo.pAttachments = &ColorBlendAttachment_1;
+		ColorBlendStateCreateInfo.blendConstants[0] = 0.0f;
+		ColorBlendStateCreateInfo.blendConstants[1] = 0.0f;
+		ColorBlendStateCreateInfo.blendConstants[2] = 0.0f;
+		ColorBlendStateCreateInfo.blendConstants[3] = 0.0f; // 这里无用只有VK_BLEND_FACTOR_CONSTANT_COLOR或VK_BLEND_FACTOR_CONSTANT_ALPHA才需要设置
+
+		// Pipeline Layout
+		VkPipelineLayoutCreateInfo PipelineLayoutCreateInfo{};
+		PipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		PipelineLayoutCreateInfo.setLayoutCount = 0;
+		PipelineLayoutCreateInfo.pSetLayouts = nullptr;
+		PipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+		PipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+
+		if (vkCreatePipelineLayout(m_LogicalDevice, &PipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create pipeline layout!");
+
 		vkDestroyShaderModule(m_LogicalDevice, FragmentShaderModule, nullptr);
 		vkDestroyShaderModule(m_LogicalDevice, VertexShaderModule, nullptr);
 		std::cout << "Success to create a pipeline !" << "\n";
