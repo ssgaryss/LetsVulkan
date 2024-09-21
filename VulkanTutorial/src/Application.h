@@ -40,7 +40,14 @@ namespace VulkanTutorial {
 		void createLogicalDevice();
 		void createSwapChain();
 		void createImageViews();
+		void createRenderPass();
 		void createGraphicsPipeline();
+		void createFramebuffers();
+		void createCommandPool();
+		void createCommandBuffer();
+		void createSyncObjects();
+		// mainLoop
+		void drawFrame();
 	private:
 		// Extensions
 		void showExtensionInformation(const std::vector<VkExtensionProperties>& vExtensions);
@@ -71,6 +78,9 @@ namespace VulkanTutorial {
 		std::vector<char> readFile(const std::filesystem::path& vPath);
 		VkShaderModule createShaderModule(const std::vector<char>& vCode);
 	private:
+		// Command
+		void recordCommandBuffer(VkCommandBuffer vCommandBuffer, uint32_t vImageIndex);
+	private:
 		const uint32_t m_Width = 800;
 		const uint32_t m_Height = 600;
 		GLFWwindow* m_Window = nullptr;
@@ -85,7 +95,15 @@ namespace VulkanTutorial {
 		std::vector<VkImageView> m_SwapchainImageViews;
 		VkFormat m_SwapchainFormat = VK_FORMAT_UNDEFINED;
 		VkExtent2D m_SwapchainExtent;
+		VkRenderPass m_RenderPass = VK_NULL_HANDLE;
+		VkPipelineLayout m_PipelineLayout = VK_NULL_HANDLE;
 		VkPipeline m_Pipeline = VK_NULL_HANDLE;
+		std::vector<VkFramebuffer> m_SwapchainFramebuffers;
+		VkCommandPool m_GraphicsCommandPool = VK_NULL_HANDLE;
+		VkCommandBuffer m_GraphicsCommandBuffer = VK_NULL_HANDLE;
+		VkSemaphore m_ImageAvailableSemaphore = VK_NULL_HANDLE;
+		VkSemaphore m_RenderFinishedSemaphore = VK_NULL_HANDLE;
+		VkFence m_InFlightFence = VK_NULL_HANDLE;
 
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue = VK_NULL_HANDLE;

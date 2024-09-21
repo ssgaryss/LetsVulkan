@@ -40,34 +40,35 @@ namespace VulkanTutorial {
 		createLogicalDevice();
 		createSwapChain();
 		createImageViews();
-		//createRenderPass();
+		createRenderPass();
 		createGraphicsPipeline();
-		//createFramebuffers();
-		//createCommandPool();
-		//createCommandBuffer();
-		//createSyncObjects();
+		createFramebuffers();
+		createCommandPool();
+		createCommandBuffer();
+		createSyncObjects();
 	}
 
 	void Application::mainLoop()
 	{
 		while (!glfwWindowShouldClose(m_Window)) {
 			glfwPollEvents();
-			//drawFrame();
+			drawFrame();
 		}
-		//vkDeviceWaitIdle(device);
+		vkDeviceWaitIdle(m_LogicalDevice); // 让应用程序暂停，直到所有在该设备（VkDevice）上提交的命令都执行完毕。
 	}
 
 	void Application::cleanup()
 	{
 		std::cout << "Try to clean up ..." << "\n";
-		//vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
-		//vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
-		//vkDestroyFence(device, inFlightFence, nullptr);
-		//vkDestroyCommandPool
-		//vkDestroyFramebuffer
+		vkDestroyFence(m_LogicalDevice, m_InFlightFence, nullptr);
+		vkDestroySemaphore(m_LogicalDevice, m_RenderFinishedSemaphore, nullptr);
+		vkDestroySemaphore(m_LogicalDevice, m_ImageAvailableSemaphore, nullptr);
+		vkDestroyCommandPool(m_LogicalDevice, m_GraphicsCommandPool, nullptr);
+		for (const auto& SwapchainFramebuffer : m_SwapchainFramebuffers)
+			vkDestroyFramebuffer(m_LogicalDevice, SwapchainFramebuffer, nullptr);
 		vkDestroyPipeline(m_LogicalDevice, m_Pipeline, nullptr);
-		//vkDestroyPipelineLayout
-		//vkDestroyRenderPass
+		vkDestroyPipelineLayout(m_LogicalDevice, m_PipelineLayout, nullptr);
+		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
 		for (const auto& View : m_SwapchainImageViews)
 			vkDestroyImageView(m_LogicalDevice, View, nullptr);
 		vkDestroySwapchainKHR(m_LogicalDevice, m_Swapchain, nullptr);
@@ -305,6 +306,63 @@ namespace VulkanTutorial {
 		return ShaderModule;
 	}
 
+	void Application::recordCommandBuffer(VkCommandBuffer vCommandBuffer, uint32_t vImageIndex)
+	{
+		std::cout << "Try to record commands to a command buffer ..." << "\n";
+		VkCommandBufferBeginInfo CommandBufferBeginInfo{};
+		CommandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		CommandBufferBeginInfo.flags = 0;
+		CommandBufferBeginInfo.pInheritanceInfo = nullptr; // 次级缓冲区才需要指定
+
+		if (vkBeginCommandBuffer(vCommandBuffer, &CommandBufferBeginInfo) != VK_SUCCESS)
+			throw std::runtime_error("Failed to begin recording command buffer!");
+		std::cout << "cmd : vkBeginCommandBuffer" << "\n";
+
+		VkRenderPassBeginInfo RenderPassBeginInfo{};
+		RenderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		RenderPassBeginInfo.renderPass = m_RenderPass;
+		RenderPassBeginInfo.framebuffer = m_SwapchainFramebuffers[vImageIndex];
+		RenderPassBeginInfo.renderArea.offset = { 0, 0 };
+		RenderPassBeginInfo.renderArea.extent = m_SwapchainExtent;
+		VkClearValue ClearColor{ {{0.0f, 0.0f, 0.0f, 1.0f}} };
+		RenderPassBeginInfo.clearValueCount = 1;
+		RenderPassBeginInfo.pClearValues = &ClearColor;
+
+		vkCmdBeginRenderPass(vCommandBuffer, &RenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		std::cout << "cmd : vkCmdBeginRenderPass" << "\n";
+		vkCmdBindPipeline(vCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
+		std::cout << "cmd : vkCmdBindPipeline" << "\n";
+
+		// Dynamic States settings
+		VkViewport Viewport;
+		Viewport.x = 0.0f;
+		Viewport.y = 0.0f;
+		Viewport.width = static_cast<float>(m_SwapchainExtent.width);
+		Viewport.height = static_cast<float>(m_SwapchainExtent.height);
+		Viewport.minDepth = 0.0f;
+		Viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(vCommandBuffer, 0, 1, &Viewport); // 第二个参数是视口index，pipline允许多个视口
+		std::cout << "cmd : vkCmdSetViewport" << "\n";
+
+		VkRect2D Scissor;
+		Scissor.offset = { 0, 0 };
+		Scissor.extent = m_SwapchainExtent;
+		vkCmdSetScissor(vCommandBuffer, 0, 1, &Scissor);
+		std::cout << "cmd : vkCmdSetScissor" << "\n";
+
+		vkCmdDraw(vCommandBuffer, 3, 1, 0, 0);
+		std::cout << "cmd : vkCmdDraw" << "\n";
+
+		vkCmdEndRenderPass(vCommandBuffer);
+		std::cout << "cmd : vkCmdEndRenderPass" << "\n";
+
+		if (vkEndCommandBuffer(vCommandBuffer) != VK_SUCCESS)
+			throw std::runtime_error("Failed to record command buffer!");
+		std::cout << "cmd : vkEndCommandBuffer" << "\n";
+
+		std::cout << "Success to recording commands to a command buffer !" << "\n";
+	}
+
 	void Application::createInstance()
 	{
 		std::cout << "Try to create Vulkan instance ..." << "\n";
@@ -530,6 +588,53 @@ namespace VulkanTutorial {
 		std::cout << "Success to create swapchain image views !" << "\n";
 	}
 
+	void Application::createRenderPass()
+	{
+		std::cout << "Try to create a render pass ..." << "\n";
+		VkAttachmentDescription AttachmentDescription{};
+		AttachmentDescription.format = m_SwapchainFormat;
+		AttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		AttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;  // 加载时先clear
+		AttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		AttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		AttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // 这里我们不care
+		AttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // VkImageLayout (dont care)
+		AttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // 用于交换链显示
+
+		// Subpasses and Attachment references
+		VkAttachmentReference AttachmentReference;
+		AttachmentReference.attachment = 0;
+		AttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription Subpass{}; // 这里我们只需要一个subpass渲染三角形
+		Subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		Subpass.colorAttachmentCount = 1;
+		Subpass.pColorAttachments = &AttachmentReference;
+
+		VkSubpassDependency SubpassDependecy{};
+		SubpassDependecy.srcSubpass = VK_SUBPASS_EXTERNAL; // 表示依赖于渲染通道外的操作，如上一帧的渲染结果
+		SubpassDependecy.dstSubpass = 0; // 目标子通道的索引
+		SubpassDependecy.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // 上一阶段的颜色输出阶段，这里即上一帧
+		SubpassDependecy.srcAccessMask = 0;
+		SubpassDependecy.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		SubpassDependecy.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		// RenderPass
+		VkRenderPassCreateInfo RenderPassCreateInfo{};
+		RenderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		RenderPassCreateInfo.attachmentCount = 1;
+		RenderPassCreateInfo.pAttachments = &AttachmentDescription;
+		RenderPassCreateInfo.subpassCount = 1;
+		RenderPassCreateInfo.pSubpasses = &Subpass;
+		RenderPassCreateInfo.dependencyCount = 1;
+		RenderPassCreateInfo.pDependencies = &SubpassDependecy;
+
+		if (vkCreateRenderPass(m_LogicalDevice, &RenderPassCreateInfo, nullptr, &m_RenderPass) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create render pass!");
+
+		std::cout << "Success to create a render pass !" << "\n";
+	}
+
 	void Application::createGraphicsPipeline()
 	{
 		std::cout << "Try to create a pipeline ..." << "\n";
@@ -554,9 +659,256 @@ namespace VulkanTutorial {
 
 		VkPipelineShaderStageCreateInfo ShaderStageCreateInfos[] = { VertexShaderStageCreateInfo, FragmentShaderStageCreateInfo };
 
+		// VertexInput
+		VkPipelineVertexInputStateCreateInfo VertexInputStateCreateInfo{};
+		VertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		VertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+		VertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr; // 结构体包含：绑定信息，顶点或实例作为步长等
+		VertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+		VertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr; //结构体包含：顶点属性布局、格式、偏移量等
+
+		// Input Assembly
+		VkPipelineInputAssemblyStateCreateInfo InputAssemblyStateCreateInfo{};
+		InputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		InputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		InputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+
+		// Dynamic State
+		std::vector<VkDynamicState> RequiredDynamicStates{
+			VK_DYNAMIC_STATE_VIEWPORT,
+			VK_DYNAMIC_STATE_SCISSOR
+		};
+		VkPipelineDynamicStateCreateInfo DynamicStateCreateInfo{};
+		DynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		DynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(RequiredDynamicStates.size());
+		DynamicStateCreateInfo.pDynamicStates = RequiredDynamicStates.data();
+
+		// Viewport and Scissors
+		VkViewport Viewport;
+		Viewport.x = 0;
+		Viewport.y = 0;
+		Viewport.width = static_cast<float>(m_SwapchainExtent.width);
+		Viewport.height = static_cast<float>(m_SwapchainExtent.height);
+		Viewport.minDepth = 0.0f;
+		Viewport.maxDepth = 1.0f;
+		VkRect2D Scissor;
+		Scissor.offset = VkOffset2D(0, 0);
+		Scissor.extent = m_SwapchainExtent;
+		VkPipelineViewportStateCreateInfo ViewportStateCreateInfo{};
+		ViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+		ViewportStateCreateInfo.pScissors = &Scissor;
+		ViewportStateCreateInfo.viewportCount = 1;
+		ViewportStateCreateInfo.scissorCount = 1; // 有些GPU支持有多个Viewport和Scissor
+		ViewportStateCreateInfo.pViewports = nullptr;
+		ViewportStateCreateInfo.pScissors = nullptr; // 这里不需要设置，因为这两个已经指明为dynamic state，可以之后在运行时指定
+
+		// Rasterizer
+		VkPipelineRasterizationStateCreateInfo RasterizationStateCreateInfo{};
+		RasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		RasterizationStateCreateInfo.depthClampEnable = VK_FALSE; // 超出视锥部分是否进行clamp
+		RasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE; // 是否不进行光栅化
+		RasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+		RasterizationStateCreateInfo.lineWidth = 1.0f;
+		RasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+		RasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE; // 顺时针为正面
+		RasterizationStateCreateInfo.depthBiasEnable = VK_FALSE; // 不进行深度偏移
+		RasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+		RasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+		RasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+		//Depth = Depth + depthBiasConstantFactor * constant + depthBiasSlopeFactor * slope (计算公式)
+
+		// Mutisampling
+		VkPipelineMultisampleStateCreateInfo MultisamplingCreateInfo{};
+		MultisamplingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		MultisamplingCreateInfo.sampleShadingEnable = VK_FALSE; // 是否超采样
+		MultisamplingCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		MultisamplingCreateInfo.minSampleShading = 1.0f;
+		MultisamplingCreateInfo.pSampleMask = nullptr;
+		MultisamplingCreateInfo.alphaToCoverageEnable = VK_FALSE;
+		MultisamplingCreateInfo.alphaToOneEnable = VK_FALSE;
+
+		// Depth and Stencil testing
+		VkPipelineDepthStencilStateCreateInfo DepthStencilStateCreateInfo{}; // 暂时不用
+
+		// Color Blending
+		VkPipelineColorBlendAttachmentState ColorBlendAttachment_1;
+		ColorBlendAttachment_1.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
+			| VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		ColorBlendAttachment_1.blendEnable = VK_TRUE;  // 这里用的alpha blending
+		ColorBlendAttachment_1.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		ColorBlendAttachment_1.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		ColorBlendAttachment_1.colorBlendOp = VK_BLEND_OP_ADD;
+		ColorBlendAttachment_1.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		ColorBlendAttachment_1.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		ColorBlendAttachment_1.alphaBlendOp = VK_BLEND_OP_ADD;
+
+		VkPipelineColorBlendStateCreateInfo ColorBlendStateCreateInfo{};
+		ColorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		ColorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+		ColorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+		ColorBlendStateCreateInfo.attachmentCount = 1;
+		ColorBlendStateCreateInfo.pAttachments = &ColorBlendAttachment_1;
+		ColorBlendStateCreateInfo.blendConstants[0] = 0.0f;
+		ColorBlendStateCreateInfo.blendConstants[1] = 0.0f;
+		ColorBlendStateCreateInfo.blendConstants[2] = 0.0f;
+		ColorBlendStateCreateInfo.blendConstants[3] = 0.0f; // 这里无用只有VK_BLEND_FACTOR_CONSTANT_COLOR或VK_BLEND_FACTOR_CONSTANT_ALPHA才需要设置
+
+		// Pipeline Layout
+		VkPipelineLayoutCreateInfo PipelineLayoutCreateInfo{};
+		PipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		PipelineLayoutCreateInfo.setLayoutCount = 0;
+		PipelineLayoutCreateInfo.pSetLayouts = nullptr;
+		PipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+		PipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+
+		if (vkCreatePipelineLayout(m_LogicalDevice, &PipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create pipeline layout!");
+
+		// Pipline !
+		VkGraphicsPipelineCreateInfo GraphicsPiplineCreateInfo{};
+		GraphicsPiplineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		GraphicsPiplineCreateInfo.stageCount = 2;
+		GraphicsPiplineCreateInfo.pStages = ShaderStageCreateInfos;
+		GraphicsPiplineCreateInfo.pVertexInputState = &VertexInputStateCreateInfo;
+		GraphicsPiplineCreateInfo.pInputAssemblyState = &InputAssemblyStateCreateInfo;
+		GraphicsPiplineCreateInfo.pDynamicState = &DynamicStateCreateInfo;
+		GraphicsPiplineCreateInfo.pViewportState = &ViewportStateCreateInfo;
+		GraphicsPiplineCreateInfo.pRasterizationState = &RasterizationStateCreateInfo;
+		GraphicsPiplineCreateInfo.pMultisampleState = &MultisamplingCreateInfo;
+		GraphicsPiplineCreateInfo.pDepthStencilState = &DepthStencilStateCreateInfo;
+		GraphicsPiplineCreateInfo.pColorBlendState = &ColorBlendStateCreateInfo;
+		GraphicsPiplineCreateInfo.layout = m_PipelineLayout;
+		GraphicsPiplineCreateInfo.renderPass = m_RenderPass;
+		GraphicsPiplineCreateInfo.subpass = 0; // 只有一个subpass索引为0
+
+		GraphicsPiplineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+		GraphicsPiplineCreateInfo.basePipelineIndex = -1;
+
+		if (vkCreateGraphicsPipelines(m_LogicalDevice, VK_NULL_HANDLE, 1,
+			&GraphicsPiplineCreateInfo, nullptr, &m_Pipeline) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create graphics pipeline!");
+
 		vkDestroyShaderModule(m_LogicalDevice, FragmentShaderModule, nullptr);
 		vkDestroyShaderModule(m_LogicalDevice, VertexShaderModule, nullptr);
 		std::cout << "Success to create a pipeline !" << "\n";
+	}
+
+	void Application::createFramebuffers()
+	{
+		std::cout << "Try to create swapchain framebuffers ..." << "\n";
+		m_SwapchainFramebuffers.resize(m_SwapchainImageViews.size());
+		for (size_t i = 0; i < m_SwapchainImageViews.size(); ++i) {
+			VkImageView FramebufferImageViews[] = {
+				m_SwapchainImageViews[i]
+			};
+
+			VkFramebufferCreateInfo FramebufferCreateInfo{};
+			FramebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			FramebufferCreateInfo.renderPass = m_RenderPass;
+			FramebufferCreateInfo.attachmentCount = sizeof(FramebufferImageViews) / sizeof(VkImageView);
+			FramebufferCreateInfo.pAttachments = FramebufferImageViews;
+			FramebufferCreateInfo.width = m_SwapchainExtent.width;
+			FramebufferCreateInfo.height = m_SwapchainExtent.height;
+			FramebufferCreateInfo.layers = 1; // 通常为1，除非3D纹理或立体贴图
+
+			if (vkCreateFramebuffer(m_LogicalDevice, &FramebufferCreateInfo, nullptr, &m_SwapchainFramebuffers[i]) != VK_SUCCESS)
+				throw std::runtime_error("Failed to create framebuffer!");
+			std::cout << std::format("Success to create SwapchainFramebuffer[{0}].", i) << "\n";
+		}
+		std::cout << "Success to create swapchain framebuffers !" << "\n";
+	}
+
+	void Application::createCommandPool()
+	{
+		std::cout << "Try to create a graphics command pool ..." << "\n";
+		std::optional<uint32_t> GraphicsQueueIndice = findQueueFamilies(m_PhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
+
+		VkCommandPoolCreateInfo CommandPoolCreateInfo{};
+		CommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		CommandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		CommandPoolCreateInfo.queueFamilyIndex = GraphicsQueueIndice.value();
+
+		if (vkCreateCommandPool(m_LogicalDevice, &CommandPoolCreateInfo, nullptr, &m_GraphicsCommandPool) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create command pool!");
+		std::cout << "Success to create a graphics command pool !" << "\n";
+	}
+
+	void Application::createCommandBuffer()
+	{
+		std::cout << "Try to allocate a command buffer for graphics command pool ..." << "\n";
+		VkCommandBufferAllocateInfo CommandBufferAllocateInfo{};
+		CommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		CommandBufferAllocateInfo.commandPool = m_GraphicsCommandPool;
+		CommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		CommandBufferAllocateInfo.commandBufferCount = 1;
+
+		if (vkAllocateCommandBuffers(m_LogicalDevice, &CommandBufferAllocateInfo, &m_GraphicsCommandBuffer) != VK_SUCCESS)
+			throw std::runtime_error("Failed to allocate command buffers!");
+		std::cout << "Success to allocate a command buffer for graphics command pool !" << "\n";
+	}
+
+	void Application::createSyncObjects()
+	{
+		std::cout << "Try to create required synchronized objects ..." << "\n";
+		VkSemaphoreCreateInfo SemaphoreCreateInfo{};
+		SemaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+		VkFenceCreateInfo FenceCreateInfo{};
+		FenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // fence初始化为有信号，否则第一帧无法开始
+
+		std::cout << "Required synchronized objects:" << "\n";
+		if (vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_ImageAvailableSemaphore) != VK_SUCCESS ||
+			vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_RenderFinishedSemaphore) != VK_SUCCESS ||
+			vkCreateFence(m_LogicalDevice, &FenceCreateInfo, nullptr, &m_InFlightFence) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create all synchronized objects!");
+		std::cout << "\tImage available semaphore" << "\n";
+		std::cout << "\tRender finished semaphore" << "\n";
+		std::cout << "\tIn flight fence" << "\n";
+		std::cout << "Success to create required synchronized objects !" << "\n";
+	}
+
+	void Application::drawFrame()
+	{
+		std::cout << "Begin Frame ..." << "\n";
+		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
+		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence);
+
+		uint32_t SwapchainImageIndex;
+		vkAcquireNextImageKHR(m_LogicalDevice, m_Swapchain, UINT64_MAX, m_ImageAvailableSemaphore,
+			VK_NULL_HANDLE, &SwapchainImageIndex);
+		// Record Command Buffer
+		vkResetCommandBuffer(m_GraphicsCommandBuffer, 0);
+		recordCommandBuffer(m_GraphicsCommandBuffer, SwapchainImageIndex);
+		// Submit
+		VkSubmitInfo SubmitInfo{};
+		SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		VkSemaphore WaitSemaphores[] = { m_ImageAvailableSemaphore };
+		VkPipelineStageFlags WaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		SubmitInfo.signalSemaphoreCount = 1;
+		SubmitInfo.pSignalSemaphores = WaitSemaphores;
+		SubmitInfo.pWaitDstStageMask = WaitStages;     // 这两个数组一一对应
+		SubmitInfo.commandBufferCount = 1;
+		SubmitInfo.pCommandBuffers = &m_GraphicsCommandBuffer;
+		VkSemaphore SignalSemaphores[] = { m_RenderFinishedSemaphore };
+		SubmitInfo.signalSemaphoreCount = 1;
+		SubmitInfo.pSignalSemaphores = SignalSemaphores;
+
+		if (vkQueueSubmit(m_GraphicsQueue, 1, &SubmitInfo, m_InFlightFence) != VK_SUCCESS)
+			throw std::runtime_error("Failed to submit draw command buffer!");
+
+		VkPresentInfoKHR PresentInfo{};
+		PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		PresentInfo.waitSemaphoreCount = 1;
+		PresentInfo.pWaitSemaphores = SignalSemaphores;
+		VkSwapchainKHR Swapchains[] = { m_Swapchain };
+		PresentInfo.swapchainCount = 1;
+		PresentInfo.pSwapchains = Swapchains;
+		PresentInfo.pImageIndices = &SwapchainImageIndex;
+		PresentInfo.pResults = nullptr; // 单个Swapchain没必要
+
+		vkQueuePresentKHR(m_PresentQueue, &PresentInfo);
+		std::cout << "End Frame" << "\n";
 	}
 
 }
