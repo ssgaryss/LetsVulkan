@@ -45,6 +45,9 @@ namespace VulkanTutorial {
 		void createFramebuffers();
 		void createCommandPool();
 		void createCommandBuffer();
+		void createSyncObjects();
+		// mainLoop
+		void drawFrame();
 	private:
 		// Extensions
 		void showExtensionInformation(const std::vector<VkExtensionProperties>& vExtensions);
@@ -98,6 +101,9 @@ namespace VulkanTutorial {
 		std::vector<VkFramebuffer> m_SwapchainFramebuffers;
 		VkCommandPool m_GraphicsCommandPool = VK_NULL_HANDLE;
 		VkCommandBuffer m_GraphicsCommandBuffer = VK_NULL_HANDLE;
+		VkSemaphore m_ImageAvailableSemaphore = VK_NULL_HANDLE;
+		VkSemaphore m_RenderFinishedSemaphore = VK_NULL_HANDLE;
+		VkFence m_InFlightFence = VK_NULL_HANDLE;
 
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue = VK_NULL_HANDLE;

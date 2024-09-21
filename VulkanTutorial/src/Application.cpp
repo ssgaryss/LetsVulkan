@@ -45,14 +45,14 @@ namespace VulkanTutorial {
 		createFramebuffers();
 		createCommandPool();
 		createCommandBuffer();
-		//createSyncObjects();
+		createSyncObjects();
 	}
 
 	void Application::mainLoop()
 	{
 		while (!glfwWindowShouldClose(m_Window)) {
 			glfwPollEvents();
-			//drawFrame();
+			drawFrame();
 		}
 		//vkDeviceWaitIdle(device);
 	}
@@ -60,9 +60,9 @@ namespace VulkanTutorial {
 	void Application::cleanup()
 	{
 		std::cout << "Try to clean up ..." << "\n";
-		//vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
-		//vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
-		//vkDestroyFence(device, inFlightFence, nullptr);
+		vkDestroyFence(m_LogicalDevice, m_InFlightFence, nullptr);
+		vkDestroySemaphore(m_LogicalDevice, m_RenderFinishedSemaphore, nullptr);
+		vkDestroySemaphore(m_LogicalDevice, m_ImageAvailableSemaphore, nullptr);
 		vkDestroyCommandPool(m_LogicalDevice, m_GraphicsCommandPool, nullptr);
 		for (const auto& SwapchainFramebuffer : m_SwapchainFramebuffers)
 			vkDestroyFramebuffer(m_LogicalDevice, SwapchainFramebuffer, nullptr);
@@ -832,6 +832,30 @@ namespace VulkanTutorial {
 		CommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		CommandBufferAllocateInfo.commandBufferCount = 1;
 		std::cout << "Success to create a command buffer for graphics command pool !" << "\n";
+	}
+
+	void Application::createSyncObjects()
+	{
+		std::cout << "Try to create required synchronized objects ..." << "\n";
+		VkSemaphoreCreateInfo SemaphoreCreateInfo{};
+		SemaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+		VkFenceCreateInfo FenceCreateInfo{};
+		FenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+		std::cout << "Required synchronized objects:" << "\n";
+		if (vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_ImageAvailableSemaphore) != VK_SUCCESS ||
+			vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_RenderFinishedSemaphore) != VK_SUCCESS ||
+			vkCreateFence(m_LogicalDevice, &FenceCreateInfo, nullptr, &m_InFlightFence) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create all synchronized objects!");
+		std::cout << "\tImage available semaphore" << "\n";
+		std::cout << "\tRender finished semaphore" << "\n";
+		std::cout << "\tIn flight fence" << "\n";
+		std::cout << "Success to create required synchronized objects !" << "\n";
+	}
+
+	void Application::drawFrame()
+	{
 	}
 
 }
