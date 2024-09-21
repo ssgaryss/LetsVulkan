@@ -42,6 +42,7 @@ namespace VulkanTutorial {
 		void createImageViews();
 		void createRenderPass();
 		void createGraphicsPipeline();
+		void createFramebuffers();
 	private:
 		// Extensions
 		void showExtensionInformation(const std::vector<VkExtensionProperties>& vExtensions);
@@ -86,6 +87,7 @@ namespace VulkanTutorial {
 		std::vector<VkImageView> m_SwapchainImageViews;
 		VkFormat m_SwapchainFormat = VK_FORMAT_UNDEFINED;
 		VkExtent2D m_SwapchainExtent;
+		std::vector<VkFramebuffer> m_SwapchainFramebuffers;
 		VkRenderPass m_RenderPass = VK_NULL_HANDLE;
 		VkPipelineLayout m_PipelineLayout = VK_NULL_HANDLE;
 		VkPipeline m_Pipeline = VK_NULL_HANDLE;

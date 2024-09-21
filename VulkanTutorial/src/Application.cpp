@@ -42,7 +42,7 @@ namespace VulkanTutorial {
 		createImageViews();
 		createRenderPass();
 		createGraphicsPipeline();
-		//createFramebuffers();
+		createFramebuffers();
 		//createCommandPool();
 		//createCommandBuffer();
 		//createSyncObjects();
@@ -64,7 +64,8 @@ namespace VulkanTutorial {
 		//vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
 		//vkDestroyFence(device, inFlightFence, nullptr);
 		//vkDestroyCommandPool
-		//vkDestroyFramebuffer
+		for (const auto& SwapchainFramebuffer : m_SwapchainFramebuffers)
+			vkDestroyFramebuffer(m_LogicalDevice, SwapchainFramebuffer, nullptr);
 		vkDestroyPipeline(m_LogicalDevice, m_Pipeline, nullptr);
 		vkDestroyPipelineLayout(m_LogicalDevice, m_PipelineLayout, nullptr);
 		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
@@ -542,7 +543,7 @@ namespace VulkanTutorial {
 		AttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // 这里我们不care
 		AttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // VkImageLayout (dont care)
 		AttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // 用于交换链显示
-		
+
 		// Subpasses and Attachment references
 		VkAttachmentReference AttachmentReference;
 		AttachmentReference.attachment = 0;
@@ -696,9 +697,58 @@ namespace VulkanTutorial {
 		if (vkCreatePipelineLayout(m_LogicalDevice, &PipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create pipeline layout!");
 
+		// Pipline !
+		VkGraphicsPipelineCreateInfo GraphicsPiplineCreateInfo{};
+		GraphicsPiplineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		GraphicsPiplineCreateInfo.stageCount = 2;
+		GraphicsPiplineCreateInfo.pStages = ShaderStageCreateInfos;
+		GraphicsPiplineCreateInfo.pVertexInputState = &VertexInputStateCreateInfo;
+		GraphicsPiplineCreateInfo.pInputAssemblyState = &InputAssemblyStateCreateInfo;
+		GraphicsPiplineCreateInfo.pDynamicState = &DynamicStateCreateInfo;
+		GraphicsPiplineCreateInfo.pViewportState = &ViewportStateCreateInfo;
+		GraphicsPiplineCreateInfo.pRasterizationState = &RasterizationStateCreateInfo;
+		GraphicsPiplineCreateInfo.pMultisampleState = &MultisamplingCreateInfo;
+		GraphicsPiplineCreateInfo.pDepthStencilState = &DepthStencilStateCreateInfo;
+		GraphicsPiplineCreateInfo.pColorBlendState = &ColorBlendStateCreateInfo;
+		GraphicsPiplineCreateInfo.layout = m_PipelineLayout;
+		GraphicsPiplineCreateInfo.renderPass = m_RenderPass;
+		GraphicsPiplineCreateInfo.subpass = 0; // 只有一个subpass索引为0
+
+		GraphicsPiplineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+		GraphicsPiplineCreateInfo.basePipelineIndex = -1;
+
+		if (vkCreateGraphicsPipelines(m_LogicalDevice, VK_NULL_HANDLE, 1,
+			&GraphicsPiplineCreateInfo, nullptr, &m_Pipeline) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create graphics pipeline!");
+
 		vkDestroyShaderModule(m_LogicalDevice, FragmentShaderModule, nullptr);
 		vkDestroyShaderModule(m_LogicalDevice, VertexShaderModule, nullptr);
 		std::cout << "Success to create a pipeline !" << "\n";
+	}
+
+	void Application::createFramebuffers()
+	{
+		std::cout << "Try to create swapchain framebuffers ..." << "\n";
+		m_SwapchainFramebuffers.resize(m_SwapchainImageViews.size());
+		for (size_t i = 0; i < m_SwapchainImageViews.size(); ++i) {
+			VkImageView FramebufferImageViews[] = {
+				m_SwapchainImageViews[i]
+			};
+
+			VkFramebufferCreateInfo FramebufferCreateInfo{};
+			FramebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			FramebufferCreateInfo.renderPass = m_RenderPass;
+			FramebufferCreateInfo.attachmentCount = sizeof(FramebufferImageViews) / sizeof(VkImageView);
+			FramebufferCreateInfo.pAttachments = FramebufferImageViews;
+			FramebufferCreateInfo.width = m_SwapchainExtent.width;
+			FramebufferCreateInfo.height = m_SwapchainExtent.height;
+			FramebufferCreateInfo.layers = 1; // 通常为1，除非3D纹理或立体贴图
+
+			if (vkCreateFramebuffer(m_LogicalDevice, &FramebufferCreateInfo, nullptr, &m_SwapchainFramebuffers[i]) != VK_SUCCESS)
+				throw std::runtime_error("Failed to create framebuffer!");
+			std::cout << std::format("Success to create SwapchainFramebuffer[{0}].", i) << "\n";
+		}
+		std::cout << "Success to create swapchain framebuffers !" << "\n";
 	}
 
 }
