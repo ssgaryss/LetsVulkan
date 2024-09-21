@@ -43,7 +43,7 @@ namespace VulkanTutorial {
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
-		//createCommandPool();
+		createCommandPool();
 		//createCommandBuffer();
 		//createSyncObjects();
 	}
@@ -63,7 +63,7 @@ namespace VulkanTutorial {
 		//vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
 		//vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
 		//vkDestroyFence(device, inFlightFence, nullptr);
-		//vkDestroyCommandPool
+		vkDestroyCommandPool(m_LogicalDevice, m_CommandPool, nullptr);
 		for (const auto& SwapchainFramebuffer : m_SwapchainFramebuffers)
 			vkDestroyFramebuffer(m_LogicalDevice, SwapchainFramebuffer, nullptr);
 		vkDestroyPipeline(m_LogicalDevice, m_Pipeline, nullptr);
@@ -749,6 +749,21 @@ namespace VulkanTutorial {
 			std::cout << std::format("Success to create SwapchainFramebuffer[{0}].", i) << "\n";
 		}
 		std::cout << "Success to create swapchain framebuffers !" << "\n";
+	}
+
+	void Application::createCommandPool()
+	{
+		std::cout << "Try to create a CommandPool ..." << "\n";
+		std::optional<uint32_t> GraphicsQueueIndice = findQueueFamilies(m_PhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
+
+		VkCommandPoolCreateInfo CommandPoolCreateInfo{};
+		CommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		CommandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		CommandPoolCreateInfo.queueFamilyIndex = GraphicsQueueIndice.value();
+
+		if (vkCreateCommandPool(m_LogicalDevice, &CommandPoolCreateInfo, nullptr, &m_CommandPool) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create command pool!");
+		std::cout << "Success to create a CommandPool !" << "\n";
 	}
 
 }
