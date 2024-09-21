@@ -306,6 +306,63 @@ namespace VulkanTutorial {
 		return ShaderModule;
 	}
 
+	void Application::recordCommandBuffer(VkCommandBuffer vCommandBuffer, uint32_t vImageIndex)
+	{
+		std::cout << "Try to record commands to a command buffer ..." << "\n";
+		VkCommandBufferBeginInfo CommandBufferBeginInfo{};
+		CommandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		CommandBufferBeginInfo.flags = 0;
+		CommandBufferBeginInfo.pInheritanceInfo = nullptr; // 次级缓冲区才需要指定
+
+		if (vkBeginCommandBuffer(vCommandBuffer, &CommandBufferBeginInfo) != VK_SUCCESS)
+			throw std::runtime_error("Failed to begin recording command buffer!");
+		std::cout << "cmd : vkBeginCommandBuffer" << "\n";
+
+		VkRenderPassBeginInfo RenderPassBeginInfo{};
+		RenderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		RenderPassBeginInfo.renderPass = m_RenderPass;
+		RenderPassBeginInfo.framebuffer = m_SwapchainFramebuffers[vImageIndex];
+		RenderPassBeginInfo.renderArea.offset = { 0, 0 };
+		RenderPassBeginInfo.renderArea.extent = m_SwapchainExtent;
+		VkClearValue ClearColor{ {{0.0f, 0.0f, 0.0f, 1.0f}} };
+		RenderPassBeginInfo.clearValueCount = 1;
+		RenderPassBeginInfo.pClearValues = &ClearColor;
+
+		vkCmdBeginRenderPass(vCommandBuffer, &RenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		std::cout << "cmd : vkCmdBeginRenderPass" << "\n";
+		vkCmdBindPipeline(vCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
+		std::cout << "cmd : vkCmdBindPipeline" << "\n";
+
+		// Dynamic States settings
+		VkViewport Viewport;
+		Viewport.x = 0.0f;
+		Viewport.y = 0.0f;
+		Viewport.width = static_cast<float>(m_SwapchainExtent.width);
+		Viewport.height = static_cast<float>(m_SwapchainExtent.height);
+		Viewport.minDepth = 0.0f;
+		Viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(vCommandBuffer, 0, 1, &Viewport); // 第二个参数是视口index，pipline允许多个视口
+		std::cout << "cmd : vkCmdSetViewport" << "\n";
+
+		VkRect2D Scissor;
+		Scissor.offset = { 0, 0 };
+		Scissor.extent = m_SwapchainExtent;
+		vkCmdSetScissor(vCommandBuffer, 0, 1, &Scissor);
+		std::cout << "cmd : vkCmdSetScissor" << "\n";
+
+		vkCmdDraw(vCommandBuffer, 3, 1, 0, 0);
+		std::cout << "cmd : vkCmdDraw" << "\n";
+
+		vkCmdEndRenderPass(vCommandBuffer);
+		std::cout << "cmd : vkCmdEndRenderPass" << "\n";
+
+		if (vkEndCommandBuffer(vCommandBuffer) != VK_SUCCESS)
+			throw std::runtime_error("Failed to record command buffer!");
+		std::cout << "cmd : vkEndCommandBuffer" << "\n";
+
+		std::cout << "Success to recording commands to a command buffer !" << "\n";
+	}
+
 	void Application::createInstance()
 	{
 		std::cout << "Try to create Vulkan instance ..." << "\n";

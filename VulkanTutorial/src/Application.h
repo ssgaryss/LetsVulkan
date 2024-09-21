@@ -75,6 +75,9 @@ namespace VulkanTutorial {
 		std::vector<char> readFile(const std::filesystem::path& vPath);
 		VkShaderModule createShaderModule(const std::vector<char>& vCode);
 	private:
+		// Command
+		void recordCommandBuffer(VkCommandBuffer vCommandBuffer, uint32_t vImageIndex);
+	private:
 		const uint32_t m_Width = 800;
 		const uint32_t m_Height = 600;
 		GLFWwindow* m_Window = nullptr;
