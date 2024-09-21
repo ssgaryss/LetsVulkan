@@ -44,6 +44,7 @@ namespace VulkanTutorial {
 		void createGraphicsPipeline();
 		void createFramebuffers();
 		void createCommandPool();
+		void createCommandBuffer();
 	private:
 		// Extensions
 		void showExtensionInformation(const std::vector<VkExtensionProperties>& vExtensions);
@@ -92,7 +93,8 @@ namespace VulkanTutorial {
 		VkPipelineLayout m_PipelineLayout = VK_NULL_HANDLE;
 		VkPipeline m_Pipeline = VK_NULL_HANDLE;
 		std::vector<VkFramebuffer> m_SwapchainFramebuffers;
-		VkCommandPool m_CommandPool = VK_NULL_HANDLE;
+		VkCommandPool m_GraphicsCommandPool = VK_NULL_HANDLE;
+		VkCommandBuffer m_GraphicsCommandBuffer = VK_NULL_HANDLE;
 
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue = VK_NULL_HANDLE;

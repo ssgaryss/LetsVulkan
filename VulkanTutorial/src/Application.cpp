@@ -44,7 +44,7 @@ namespace VulkanTutorial {
 		createGraphicsPipeline();
 		createFramebuffers();
 		createCommandPool();
-		//createCommandBuffer();
+		createCommandBuffer();
 		//createSyncObjects();
 	}
 
@@ -63,7 +63,7 @@ namespace VulkanTutorial {
 		//vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
 		//vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
 		//vkDestroyFence(device, inFlightFence, nullptr);
-		vkDestroyCommandPool(m_LogicalDevice, m_CommandPool, nullptr);
+		vkDestroyCommandPool(m_LogicalDevice, m_GraphicsCommandPool, nullptr);
 		for (const auto& SwapchainFramebuffer : m_SwapchainFramebuffers)
 			vkDestroyFramebuffer(m_LogicalDevice, SwapchainFramebuffer, nullptr);
 		vkDestroyPipeline(m_LogicalDevice, m_Pipeline, nullptr);
@@ -753,7 +753,7 @@ namespace VulkanTutorial {
 
 	void Application::createCommandPool()
 	{
-		std::cout << "Try to create a CommandPool ..." << "\n";
+		std::cout << "Try to create a graphics command pool ..." << "\n";
 		std::optional<uint32_t> GraphicsQueueIndice = findQueueFamilies(m_PhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
 
 		VkCommandPoolCreateInfo CommandPoolCreateInfo{};
@@ -761,9 +761,20 @@ namespace VulkanTutorial {
 		CommandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		CommandPoolCreateInfo.queueFamilyIndex = GraphicsQueueIndice.value();
 
-		if (vkCreateCommandPool(m_LogicalDevice, &CommandPoolCreateInfo, nullptr, &m_CommandPool) != VK_SUCCESS)
+		if (vkCreateCommandPool(m_LogicalDevice, &CommandPoolCreateInfo, nullptr, &m_GraphicsCommandPool) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create command pool!");
-		std::cout << "Success to create a CommandPool !" << "\n";
+		std::cout << "Success to create a graphics command pool !" << "\n";
+	}
+
+	void Application::createCommandBuffer()
+	{
+		std::cout << "Try to create a command buffer for graphics command pool ..." << "\n";
+		VkCommandBufferAllocateInfo CommandBufferAllocateInfo{};
+		CommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		CommandBufferAllocateInfo.commandPool = m_GraphicsCommandPool;
+		CommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		CommandBufferAllocateInfo.commandBufferCount = 1;
+		std::cout << "Success to create a command buffer for graphics command pool !" << "\n";
 	}
 
 }
