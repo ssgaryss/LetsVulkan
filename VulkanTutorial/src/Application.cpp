@@ -54,7 +54,7 @@ namespace VulkanTutorial {
 			glfwPollEvents();
 			drawFrame();
 		}
-		//vkDeviceWaitIdle(device);
+		vkDeviceWaitIdle(m_LogicalDevice); // 让应用程序暂停，直到所有在该设备（VkDevice）上提交的命令都执行完毕。
 	}
 
 	void Application::cleanup()
@@ -611,6 +611,14 @@ namespace VulkanTutorial {
 		Subpass.colorAttachmentCount = 1;
 		Subpass.pColorAttachments = &AttachmentReference;
 
+		VkSubpassDependency SubpassDependecy{};
+		SubpassDependecy.srcSubpass = VK_SUBPASS_EXTERNAL; // 表示依赖于渲染通道外的操作，如上一帧的渲染结果
+		SubpassDependecy.dstSubpass = 0; // 目标子通道的索引
+		SubpassDependecy.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // 上一阶段的颜色输出阶段，这里即上一帧
+		SubpassDependecy.srcAccessMask = 0;
+		SubpassDependecy.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		SubpassDependecy.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
 		// RenderPass
 		VkRenderPassCreateInfo RenderPassCreateInfo{};
 		RenderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -618,6 +626,8 @@ namespace VulkanTutorial {
 		RenderPassCreateInfo.pAttachments = &AttachmentDescription;
 		RenderPassCreateInfo.subpassCount = 1;
 		RenderPassCreateInfo.pSubpasses = &Subpass;
+		RenderPassCreateInfo.dependencyCount = 1;
+		RenderPassCreateInfo.pDependencies = &SubpassDependecy;
 
 		if (vkCreateRenderPass(m_LogicalDevice, &RenderPassCreateInfo, nullptr, &m_RenderPass) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create render pass!");
@@ -700,7 +710,7 @@ namespace VulkanTutorial {
 		RasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 		RasterizationStateCreateInfo.lineWidth = 1.0f;
 		RasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-		RasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; // 逆时针为正面
+		RasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE; // 顺时针为正面
 		RasterizationStateCreateInfo.depthBiasEnable = VK_FALSE; // 不进行深度偏移
 		RasterizationStateCreateInfo.depthBiasClamp = 0.0f;
 		RasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
@@ -825,13 +835,16 @@ namespace VulkanTutorial {
 
 	void Application::createCommandBuffer()
 	{
-		std::cout << "Try to create a command buffer for graphics command pool ..." << "\n";
+		std::cout << "Try to allocate a command buffer for graphics command pool ..." << "\n";
 		VkCommandBufferAllocateInfo CommandBufferAllocateInfo{};
 		CommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		CommandBufferAllocateInfo.commandPool = m_GraphicsCommandPool;
 		CommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		CommandBufferAllocateInfo.commandBufferCount = 1;
-		std::cout << "Success to create a command buffer for graphics command pool !" << "\n";
+
+		if (vkAllocateCommandBuffers(m_LogicalDevice, &CommandBufferAllocateInfo, &m_GraphicsCommandBuffer) != VK_SUCCESS)
+			throw std::runtime_error("Failed to allocate command buffers!");
+		std::cout << "Success to allocate a command buffer for graphics command pool !" << "\n";
 	}
 
 	void Application::createSyncObjects()
@@ -842,6 +855,7 @@ namespace VulkanTutorial {
 
 		VkFenceCreateInfo FenceCreateInfo{};
 		FenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // fence初始化为有信号，否则第一帧无法开始
 
 		std::cout << "Required synchronized objects:" << "\n";
 		if (vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_ImageAvailableSemaphore) != VK_SUCCESS ||
@@ -856,6 +870,45 @@ namespace VulkanTutorial {
 
 	void Application::drawFrame()
 	{
+		std::cout << "Begin Frame ..." << "\n";
+		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
+		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence);
+
+		uint32_t SwapchainImageIndex;
+		vkAcquireNextImageKHR(m_LogicalDevice, m_Swapchain, UINT64_MAX, m_ImageAvailableSemaphore,
+			VK_NULL_HANDLE, &SwapchainImageIndex);
+		// Record Command Buffer
+		vkResetCommandBuffer(m_GraphicsCommandBuffer, 0);
+		recordCommandBuffer(m_GraphicsCommandBuffer, SwapchainImageIndex);
+		// Submit
+		VkSubmitInfo SubmitInfo{};
+		SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		VkSemaphore WaitSemaphores[] = { m_ImageAvailableSemaphore };
+		VkPipelineStageFlags WaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		SubmitInfo.signalSemaphoreCount = 1;
+		SubmitInfo.pSignalSemaphores = WaitSemaphores;
+		SubmitInfo.pWaitDstStageMask = WaitStages;     // 这两个数组一一对应
+		SubmitInfo.commandBufferCount = 1;
+		SubmitInfo.pCommandBuffers = &m_GraphicsCommandBuffer;
+		VkSemaphore SignalSemaphores[] = { m_RenderFinishedSemaphore };
+		SubmitInfo.signalSemaphoreCount = 1;
+		SubmitInfo.pSignalSemaphores = SignalSemaphores;
+
+		if (vkQueueSubmit(m_GraphicsQueue, 1, &SubmitInfo, m_InFlightFence) != VK_SUCCESS)
+			throw std::runtime_error("Failed to submit draw command buffer!");
+
+		VkPresentInfoKHR PresentInfo{};
+		PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		PresentInfo.waitSemaphoreCount = 1;
+		PresentInfo.pWaitSemaphores = SignalSemaphores;
+		VkSwapchainKHR Swapchains[] = { m_Swapchain };
+		PresentInfo.swapchainCount = 1;
+		PresentInfo.pSwapchains = Swapchains;
+		PresentInfo.pImageIndices = &SwapchainImageIndex;
+		PresentInfo.pResults = nullptr; // 单个Swapchain没必要
+
+		vkQueuePresentKHR(m_PresentQueue, &PresentInfo);
+		std::cout << "End Frame" << "\n";
 	}
 
 }
