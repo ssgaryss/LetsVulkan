@@ -26,9 +26,23 @@ namespace VulkanTutorial {
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+		glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
 
 		m_Window = glfwCreateWindow(m_Width, m_Height, "VulkanTutorial", nullptr, nullptr);
+		glfwSetWindowUserPointer(m_Window, this);
+		glfwSetFramebufferSizeCallback(m_Window, [](GLFWwindow* window, int width, int height) {
+			auto App = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+			App->m_IsWindowResize = true;
+			});
+		glfwSetWindowSizeCallback(m_Window, [](GLFWwindow* window, int width, int height) {
+			auto App = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+			App->m_Width = static_cast<uint32_t>(width);
+			App->m_Height = static_cast<uint32_t>(height);
+			if (width == 0 || height == 0)
+				App->m_IsMinimized = true;
+			else
+				App->m_IsMinimized = false;
+			});
 	}
 
 	void Application::initVulkan()
@@ -51,12 +65,14 @@ namespace VulkanTutorial {
 	void Application::mainLoop()
 	{
 		while (!glfwWindowShouldClose(m_Window)) {
-			float Time = m_Timer.ellapseMilliseconds();
-			float DeltaTime = Time - m_LastFrameTime;
-			m_LastFrameTime = Time;
+			if (!m_IsMinimized) {
+				float Time = m_Timer.ellapseMilliseconds();
+				float DeltaTime = Time - m_LastFrameTime;
+				m_LastFrameTime = Time;
 
+				drawFrame(DeltaTime);
+			}
 			glfwPollEvents();
-			drawFrame(DeltaTime);
 		}
 		vkDeviceWaitIdle(m_LogicalDevice); // 让应用程序暂停，直到所有在该设备（VkDevice）上提交的命令都执行完毕。
 	}
@@ -70,14 +86,10 @@ namespace VulkanTutorial {
 			vkDestroySemaphore(m_LogicalDevice, m_ImageAvailableSemaphore[i], nullptr);
 		}
 		vkDestroyCommandPool(m_LogicalDevice, m_GraphicsCommandPool, nullptr);
-		for (const auto& SwapchainFramebuffer : m_SwapchainFramebuffers)
-			vkDestroyFramebuffer(m_LogicalDevice, SwapchainFramebuffer, nullptr);
 		vkDestroyPipeline(m_LogicalDevice, m_Pipeline, nullptr);
 		vkDestroyPipelineLayout(m_LogicalDevice, m_PipelineLayout, nullptr);
 		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
-		for (const auto& View : m_SwapchainImageViews)
-			vkDestroyImageView(m_LogicalDevice, View, nullptr);
-		vkDestroySwapchainKHR(m_LogicalDevice, m_Swapchain, nullptr);
+		cleanupSwapchain();
 		vkDestroyDevice(m_LogicalDevice, nullptr);
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
 		if (IsEnableValidationLayer) {
@@ -283,6 +295,28 @@ namespace VulkanTutorial {
 	bool Application::checkSwapchainSupport(const SwapChainSupportDetails& vSwapchainDetails)
 	{
 		return !vSwapchainDetails.m_SurfaceFormats.empty() && !vSwapchainDetails.m_PresentModes.empty();
+	}
+
+	void Application::recreateSwapchain()
+	{
+		std::cout << "Try to recreate swapchian ..." << "\n";
+		vkDeviceWaitIdle(m_LogicalDevice);
+
+		cleanupSwapchain();
+		createSwapChain();
+		createImageViews();
+		// 这里其实还应该recreate render pass(略)
+		createFramebuffers();
+		std::cout << "Success to recreate swapchian !" << "\n";
+	}
+
+	void Application::cleanupSwapchain()
+	{
+		for (const auto& SwapchainFramebuffer : m_SwapchainFramebuffers)
+			vkDestroyFramebuffer(m_LogicalDevice, SwapchainFramebuffer, nullptr);
+		for (const auto& View : m_SwapchainImageViews)
+			vkDestroyImageView(m_LogicalDevice, View, nullptr);
+		vkDestroySwapchainKHR(m_LogicalDevice, m_Swapchain, nullptr);
 	}
 
 	std::vector<char> Application::readFile(const std::filesystem::path& vPath)
@@ -886,11 +920,20 @@ namespace VulkanTutorial {
 		std::cout << std::format("Frame time: {:.2f} ms", vDeltaTime) << "\n";
 		std::cout << std::format("Current frame index: {}", m_CurrentFrame) << "\n";
 		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence[m_CurrentFrame], VK_TRUE, UINT64_MAX);
-		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence[m_CurrentFrame]);
 
 		uint32_t SwapchainImageIndex;
-		vkAcquireNextImageKHR(m_LogicalDevice, m_Swapchain, UINT64_MAX, m_ImageAvailableSemaphore[m_CurrentFrame],
-			VK_NULL_HANDLE, &SwapchainImageIndex);
+		if (VkResult Result = vkAcquireNextImageKHR(m_LogicalDevice, m_Swapchain, UINT64_MAX,
+			m_ImageAvailableSemaphore[m_CurrentFrame], VK_NULL_HANDLE, &SwapchainImageIndex);
+			Result == VK_ERROR_OUT_OF_DATE_KHR || Result == VK_SUBOPTIMAL_KHR || m_IsWindowResize) {
+			m_IsWindowResize = false;
+			recreateSwapchain();
+			return;
+		}
+		else if (Result != VK_SUCCESS) {
+			throw std::runtime_error("Failed to acquire swap chain image!");
+		}
+		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence[m_CurrentFrame]);
+
 		// Record Command Buffer
 		vkResetCommandBuffer(m_GraphicsCommandBuffer[m_CurrentFrame], 0);
 		recordCommandBuffer(m_GraphicsCommandBuffer[m_CurrentFrame], SwapchainImageIndex);
@@ -921,7 +964,14 @@ namespace VulkanTutorial {
 		PresentInfo.pImageIndices = &SwapchainImageIndex;
 		PresentInfo.pResults = nullptr; // 单个Swapchain没必要
 
-		vkQueuePresentKHR(m_PresentQueue, &PresentInfo);
+		if (VkResult Result = vkQueuePresentKHR(m_PresentQueue, &PresentInfo);
+			Result == VK_ERROR_OUT_OF_DATE_KHR || Result == VK_SUBOPTIMAL_KHR || m_IsWindowResize) {
+			m_IsWindowResize = false;
+			recreateSwapchain();
+		}
+		else if (Result != VK_SUCCESS) {
+			throw std::runtime_error("Failed to present swap chain image!");
+		}
 
 		m_CurrentFrame = (m_CurrentFrame + 1) % m_MaxFrameInFlight;
 		std::cout << "End Frame" << "\n";
