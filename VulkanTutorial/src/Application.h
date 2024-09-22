@@ -1,5 +1,6 @@
 #pragma once
 #include "Base.h"
+#include "Timer.h"
 
 #include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -43,11 +44,11 @@ namespace VulkanTutorial {
 		void createRenderPass();
 		void createGraphicsPipeline();
 		void createFramebuffers();
-		void createCommandPool();
-		void createCommandBuffer();
+		void createGraphicsCommandPool();
+		void createGraphicsCommandBuffers();
 		void createSyncObjects();
 		// mainLoop
-		void drawFrame();
+		void drawFrame(float vDeltaTime);
 	private:
 		// Extensions
 		void showExtensionInformation(const std::vector<VkExtensionProperties>& vExtensions);
@@ -73,6 +74,8 @@ namespace VulkanTutorial {
 		VkPresentModeKHR chooseSwapchainPresentMode(const std::vector<VkPresentModeKHR>& vPresentModes);
 		VkExtent2D chooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& vCapabilities);
 		bool checkSwapchainSupport(const SwapChainSupportDetails& vSwapchainDetails);
+		void recreateSwapchain();
+		void cleanupSwapchain();
 	private:
 		// Shader
 		std::vector<char> readFile(const std::filesystem::path& vPath);
@@ -80,10 +83,16 @@ namespace VulkanTutorial {
 	private:
 		// Command
 		void recordCommandBuffer(VkCommandBuffer vCommandBuffer, uint32_t vImageIndex);
-	private:
-		const uint32_t m_Width = 800;
-		const uint32_t m_Height = 600;
+	public:
+		uint32_t m_Width = 800;
+		uint32_t m_Height = 600;
+		const uint32_t m_MaxFrameInFlight = 2; // 即CPU最多领先GPU一帧画面，通常2是合理的
+		uint32_t m_CurrentFrame = 0;
+		bool m_IsWindowResize = false;
+		bool m_IsMinimized = false;
 		GLFWwindow* m_Window = nullptr;
+		Timer m_Timer = {};
+		float m_LastFrameTime = 0.0f;
 	private:
 		VkInstance m_Instance;
 		VkDebugUtilsMessengerEXT m_DebugMessenger;
@@ -100,10 +109,10 @@ namespace VulkanTutorial {
 		VkPipeline m_Pipeline = VK_NULL_HANDLE;
 		std::vector<VkFramebuffer> m_SwapchainFramebuffers;
 		VkCommandPool m_GraphicsCommandPool = VK_NULL_HANDLE;
-		VkCommandBuffer m_GraphicsCommandBuffer = VK_NULL_HANDLE;
-		VkSemaphore m_ImageAvailableSemaphore = VK_NULL_HANDLE;
-		VkSemaphore m_RenderFinishedSemaphore = VK_NULL_HANDLE;
-		VkFence m_InFlightFence = VK_NULL_HANDLE;
+		std::vector<VkCommandBuffer> m_GraphicsCommandBuffer;
+		std::vector<VkSemaphore> m_ImageAvailableSemaphore;
+		std::vector<VkSemaphore> m_RenderFinishedSemaphore;
+		std::vector<VkFence> m_InFlightFence;
 
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue = VK_NULL_HANDLE;

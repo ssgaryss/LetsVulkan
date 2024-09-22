@@ -26,9 +26,23 @@ namespace VulkanTutorial {
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+		glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
 
 		m_Window = glfwCreateWindow(m_Width, m_Height, "VulkanTutorial", nullptr, nullptr);
+		glfwSetWindowUserPointer(m_Window, this);
+		glfwSetFramebufferSizeCallback(m_Window, [](GLFWwindow* window, int width, int height) {
+			auto App = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+			App->m_IsWindowResize = true;
+			});
+		glfwSetWindowSizeCallback(m_Window, [](GLFWwindow* window, int width, int height) {
+			auto App = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+			App->m_Width = static_cast<uint32_t>(width);
+			App->m_Height = static_cast<uint32_t>(height);
+			if (width == 0 || height == 0)
+				App->m_IsMinimized = true;
+			else
+				App->m_IsMinimized = false;
+			});
 	}
 
 	void Application::initVulkan()
@@ -43,16 +57,22 @@ namespace VulkanTutorial {
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
-		createCommandPool();
-		createCommandBuffer();
+		createGraphicsCommandPool();
+		createGraphicsCommandBuffers();
 		createSyncObjects();
 	}
 
 	void Application::mainLoop()
 	{
 		while (!glfwWindowShouldClose(m_Window)) {
+			if (!m_IsMinimized) {
+				float Time = m_Timer.ellapseMilliseconds();
+				float DeltaTime = Time - m_LastFrameTime;
+				m_LastFrameTime = Time;
+
+				drawFrame(DeltaTime);
+			}
 			glfwPollEvents();
-			drawFrame();
 		}
 		vkDeviceWaitIdle(m_LogicalDevice); // 让应用程序暂停，直到所有在该设备（VkDevice）上提交的命令都执行完毕。
 	}
@@ -60,18 +80,16 @@ namespace VulkanTutorial {
 	void Application::cleanup()
 	{
 		std::cout << "Try to clean up ..." << "\n";
-		vkDestroyFence(m_LogicalDevice, m_InFlightFence, nullptr);
-		vkDestroySemaphore(m_LogicalDevice, m_RenderFinishedSemaphore, nullptr);
-		vkDestroySemaphore(m_LogicalDevice, m_ImageAvailableSemaphore, nullptr);
+		for (size_t i = 0; i < m_MaxFrameInFlight; ++i) {
+			vkDestroyFence(m_LogicalDevice, m_InFlightFence[i], nullptr);
+			vkDestroySemaphore(m_LogicalDevice, m_RenderFinishedSemaphore[i], nullptr);
+			vkDestroySemaphore(m_LogicalDevice, m_ImageAvailableSemaphore[i], nullptr);
+		}
 		vkDestroyCommandPool(m_LogicalDevice, m_GraphicsCommandPool, nullptr);
-		for (const auto& SwapchainFramebuffer : m_SwapchainFramebuffers)
-			vkDestroyFramebuffer(m_LogicalDevice, SwapchainFramebuffer, nullptr);
 		vkDestroyPipeline(m_LogicalDevice, m_Pipeline, nullptr);
 		vkDestroyPipelineLayout(m_LogicalDevice, m_PipelineLayout, nullptr);
 		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
-		for (const auto& View : m_SwapchainImageViews)
-			vkDestroyImageView(m_LogicalDevice, View, nullptr);
-		vkDestroySwapchainKHR(m_LogicalDevice, m_Swapchain, nullptr);
+		cleanupSwapchain();
 		vkDestroyDevice(m_LogicalDevice, nullptr);
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
 		if (IsEnableValidationLayer) {
@@ -277,6 +295,28 @@ namespace VulkanTutorial {
 	bool Application::checkSwapchainSupport(const SwapChainSupportDetails& vSwapchainDetails)
 	{
 		return !vSwapchainDetails.m_SurfaceFormats.empty() && !vSwapchainDetails.m_PresentModes.empty();
+	}
+
+	void Application::recreateSwapchain()
+	{
+		std::cout << "Try to recreate swapchian ..." << "\n";
+		vkDeviceWaitIdle(m_LogicalDevice);
+
+		cleanupSwapchain();
+		createSwapChain();
+		createImageViews();
+		// 这里其实还应该recreate render pass(略)
+		createFramebuffers();
+		std::cout << "Success to recreate swapchian !" << "\n";
+	}
+
+	void Application::cleanupSwapchain()
+	{
+		for (const auto& SwapchainFramebuffer : m_SwapchainFramebuffers)
+			vkDestroyFramebuffer(m_LogicalDevice, SwapchainFramebuffer, nullptr);
+		for (const auto& View : m_SwapchainImageViews)
+			vkDestroyImageView(m_LogicalDevice, View, nullptr);
+		vkDestroySwapchainKHR(m_LogicalDevice, m_Swapchain, nullptr);
 	}
 
 	std::vector<char> Application::readFile(const std::filesystem::path& vPath)
@@ -818,7 +858,7 @@ namespace VulkanTutorial {
 		std::cout << "Success to create swapchain framebuffers !" << "\n";
 	}
 
-	void Application::createCommandPool()
+	void Application::createGraphicsCommandPool()
 	{
 		std::cout << "Try to create a graphics command pool ..." << "\n";
 		std::optional<uint32_t> GraphicsQueueIndice = findQueueFamilies(m_PhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
@@ -833,23 +873,27 @@ namespace VulkanTutorial {
 		std::cout << "Success to create a graphics command pool !" << "\n";
 	}
 
-	void Application::createCommandBuffer()
+	void Application::createGraphicsCommandBuffers()
 	{
-		std::cout << "Try to allocate a command buffer for graphics command pool ..." << "\n";
+		std::cout << "Try to allocate a command buffers for graphics command pool ..." << "\n";
+		m_GraphicsCommandBuffer.resize(m_MaxFrameInFlight);
 		VkCommandBufferAllocateInfo CommandBufferAllocateInfo{};
 		CommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		CommandBufferAllocateInfo.commandPool = m_GraphicsCommandPool;
 		CommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		CommandBufferAllocateInfo.commandBufferCount = 1;
+		CommandBufferAllocateInfo.commandBufferCount = static_cast<uint32_t>(m_GraphicsCommandBuffer.size());
 
-		if (vkAllocateCommandBuffers(m_LogicalDevice, &CommandBufferAllocateInfo, &m_GraphicsCommandBuffer) != VK_SUCCESS)
+		if (vkAllocateCommandBuffers(m_LogicalDevice, &CommandBufferAllocateInfo, m_GraphicsCommandBuffer.data()) != VK_SUCCESS)
 			throw std::runtime_error("Failed to allocate command buffers!");
-		std::cout << "Success to allocate a command buffer for graphics command pool !" << "\n";
+		std::cout << "Success to allocate a command buffers for graphics command pool !" << "\n";
 	}
 
 	void Application::createSyncObjects()
 	{
 		std::cout << "Try to create required synchronized objects ..." << "\n";
+		m_ImageAvailableSemaphore.resize(m_MaxFrameInFlight);
+		m_RenderFinishedSemaphore.resize(m_MaxFrameInFlight);
+		m_InFlightFence.resize(m_MaxFrameInFlight);
 		VkSemaphoreCreateInfo SemaphoreCreateInfo{};
 		SemaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -858,43 +902,56 @@ namespace VulkanTutorial {
 		FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // fence初始化为有信号，否则第一帧无法开始
 
 		std::cout << "Required synchronized objects:" << "\n";
-		if (vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_ImageAvailableSemaphore) != VK_SUCCESS ||
-			vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_RenderFinishedSemaphore) != VK_SUCCESS ||
-			vkCreateFence(m_LogicalDevice, &FenceCreateInfo, nullptr, &m_InFlightFence) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create all synchronized objects!");
 		std::cout << "\tImage available semaphore" << "\n";
 		std::cout << "\tRender finished semaphore" << "\n";
 		std::cout << "\tIn flight fence" << "\n";
+		for (size_t i = 0; i < m_MaxFrameInFlight; ++i) {
+			if (vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_ImageAvailableSemaphore[i]) != VK_SUCCESS ||
+				vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_RenderFinishedSemaphore[i]) != VK_SUCCESS ||
+				vkCreateFence(m_LogicalDevice, &FenceCreateInfo, nullptr, &m_InFlightFence[i]) != VK_SUCCESS)
+				throw std::runtime_error("Failed to create all synchronized objects!");
+		}
 		std::cout << "Success to create required synchronized objects !" << "\n";
 	}
 
-	void Application::drawFrame()
+	void Application::drawFrame(float vDeltaTime)
 	{
 		std::cout << "Begin Frame ..." << "\n";
-		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
-		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence);
+		std::cout << std::format("Frame time: {:.2f} ms", vDeltaTime) << "\n";
+		std::cout << std::format("Current frame index: {}", m_CurrentFrame) << "\n";
+		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence[m_CurrentFrame], VK_TRUE, UINT64_MAX);
 
 		uint32_t SwapchainImageIndex;
-		vkAcquireNextImageKHR(m_LogicalDevice, m_Swapchain, UINT64_MAX, m_ImageAvailableSemaphore,
-			VK_NULL_HANDLE, &SwapchainImageIndex);
+		if (VkResult Result = vkAcquireNextImageKHR(m_LogicalDevice, m_Swapchain, UINT64_MAX,
+			m_ImageAvailableSemaphore[m_CurrentFrame], VK_NULL_HANDLE, &SwapchainImageIndex);
+			Result == VK_ERROR_OUT_OF_DATE_KHR || Result == VK_SUBOPTIMAL_KHR || m_IsWindowResize) {
+			m_IsWindowResize = false;
+			recreateSwapchain();
+			return;
+		}
+		else if (Result != VK_SUCCESS) {
+			throw std::runtime_error("Failed to acquire swap chain image!");
+		}
+		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence[m_CurrentFrame]);
+
 		// Record Command Buffer
-		vkResetCommandBuffer(m_GraphicsCommandBuffer, 0);
-		recordCommandBuffer(m_GraphicsCommandBuffer, SwapchainImageIndex);
+		vkResetCommandBuffer(m_GraphicsCommandBuffer[m_CurrentFrame], 0);
+		recordCommandBuffer(m_GraphicsCommandBuffer[m_CurrentFrame], SwapchainImageIndex);
 		// Submit
 		VkSubmitInfo SubmitInfo{};
 		SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		VkSemaphore WaitSemaphores[] = { m_ImageAvailableSemaphore };
+		VkSemaphore WaitSemaphores[] = { m_ImageAvailableSemaphore[m_CurrentFrame] };
 		VkPipelineStageFlags WaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 		SubmitInfo.signalSemaphoreCount = 1;
 		SubmitInfo.pSignalSemaphores = WaitSemaphores;
 		SubmitInfo.pWaitDstStageMask = WaitStages;     // 这两个数组一一对应
 		SubmitInfo.commandBufferCount = 1;
-		SubmitInfo.pCommandBuffers = &m_GraphicsCommandBuffer;
-		VkSemaphore SignalSemaphores[] = { m_RenderFinishedSemaphore };
+		SubmitInfo.pCommandBuffers = &m_GraphicsCommandBuffer[m_CurrentFrame];
+		VkSemaphore SignalSemaphores[] = { m_RenderFinishedSemaphore[m_CurrentFrame] };
 		SubmitInfo.signalSemaphoreCount = 1;
 		SubmitInfo.pSignalSemaphores = SignalSemaphores;
 
-		if (vkQueueSubmit(m_GraphicsQueue, 1, &SubmitInfo, m_InFlightFence) != VK_SUCCESS)
+		if (vkQueueSubmit(m_GraphicsQueue, 1, &SubmitInfo, m_InFlightFence[m_CurrentFrame]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to submit draw command buffer!");
 
 		VkPresentInfoKHR PresentInfo{};
@@ -907,7 +964,16 @@ namespace VulkanTutorial {
 		PresentInfo.pImageIndices = &SwapchainImageIndex;
 		PresentInfo.pResults = nullptr; // 单个Swapchain没必要
 
-		vkQueuePresentKHR(m_PresentQueue, &PresentInfo);
+		if (VkResult Result = vkQueuePresentKHR(m_PresentQueue, &PresentInfo);
+			Result == VK_ERROR_OUT_OF_DATE_KHR || Result == VK_SUBOPTIMAL_KHR || m_IsWindowResize) {
+			m_IsWindowResize = false;
+			recreateSwapchain();
+		}
+		else if (Result != VK_SUCCESS) {
+			throw std::runtime_error("Failed to present swap chain image!");
+		}
+
+		m_CurrentFrame = (m_CurrentFrame + 1) % m_MaxFrameInFlight;
 		std::cout << "End Frame" << "\n";
 	}
 
