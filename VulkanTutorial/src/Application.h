@@ -1,5 +1,6 @@
 #pragma once
 #include "Base.h"
+#include "Timer.h"
 
 #include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -47,7 +48,7 @@ namespace VulkanTutorial {
 		void createCommandBuffer();
 		void createSyncObjects();
 		// mainLoop
-		void drawFrame();
+		void drawFrame(float vDeltaTime);
 	private:
 		// Extensions
 		void showExtensionInformation(const std::vector<VkExtensionProperties>& vExtensions);
@@ -84,6 +85,8 @@ namespace VulkanTutorial {
 		const uint32_t m_Width = 800;
 		const uint32_t m_Height = 600;
 		GLFWwindow* m_Window = nullptr;
+		Timer m_Timer = {};
+		float m_LastFrameTime = 0.0f;
 	private:
 		VkInstance m_Instance;
 		VkDebugUtilsMessengerEXT m_DebugMessenger;

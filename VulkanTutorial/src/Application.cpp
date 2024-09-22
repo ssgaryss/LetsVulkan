@@ -51,8 +51,12 @@ namespace VulkanTutorial {
 	void Application::mainLoop()
 	{
 		while (!glfwWindowShouldClose(m_Window)) {
+			float Time = m_Timer.ellapseMilliseconds();
+			float DeltaTime = Time - m_LastFrameTime;
+			m_LastFrameTime = Time;
+
 			glfwPollEvents();
-			drawFrame();
+			drawFrame(DeltaTime);
 		}
 		vkDeviceWaitIdle(m_LogicalDevice); // 让应用程序暂停，直到所有在该设备（VkDevice）上提交的命令都执行完毕。
 	}
@@ -868,9 +872,10 @@ namespace VulkanTutorial {
 		std::cout << "Success to create required synchronized objects !" << "\n";
 	}
 
-	void Application::drawFrame()
+	void Application::drawFrame(float vDeltaTime)
 	{
 		std::cout << "Begin Frame ..." << "\n";
+		std::cout << std::format("Frame time: {:.2f} ms", vDeltaTime) << "\n";
 		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
 		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence);
 
