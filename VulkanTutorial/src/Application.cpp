@@ -43,8 +43,8 @@ namespace VulkanTutorial {
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
-		createCommandPool();
-		createCommandBuffer();
+		createGraphicsCommandPool();
+		createGraphicsCommandBuffers();
 		createSyncObjects();
 	}
 
@@ -64,9 +64,11 @@ namespace VulkanTutorial {
 	void Application::cleanup()
 	{
 		std::cout << "Try to clean up ..." << "\n";
-		vkDestroyFence(m_LogicalDevice, m_InFlightFence, nullptr);
-		vkDestroySemaphore(m_LogicalDevice, m_RenderFinishedSemaphore, nullptr);
-		vkDestroySemaphore(m_LogicalDevice, m_ImageAvailableSemaphore, nullptr);
+		for (size_t i = 0; i < m_MaxFrameInFlight; ++i) {
+			vkDestroyFence(m_LogicalDevice, m_InFlightFence[i], nullptr);
+			vkDestroySemaphore(m_LogicalDevice, m_RenderFinishedSemaphore[i], nullptr);
+			vkDestroySemaphore(m_LogicalDevice, m_ImageAvailableSemaphore[i], nullptr);
+		}
 		vkDestroyCommandPool(m_LogicalDevice, m_GraphicsCommandPool, nullptr);
 		for (const auto& SwapchainFramebuffer : m_SwapchainFramebuffers)
 			vkDestroyFramebuffer(m_LogicalDevice, SwapchainFramebuffer, nullptr);
@@ -822,7 +824,7 @@ namespace VulkanTutorial {
 		std::cout << "Success to create swapchain framebuffers !" << "\n";
 	}
 
-	void Application::createCommandPool()
+	void Application::createGraphicsCommandPool()
 	{
 		std::cout << "Try to create a graphics command pool ..." << "\n";
 		std::optional<uint32_t> GraphicsQueueIndice = findQueueFamilies(m_PhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
@@ -837,23 +839,27 @@ namespace VulkanTutorial {
 		std::cout << "Success to create a graphics command pool !" << "\n";
 	}
 
-	void Application::createCommandBuffer()
+	void Application::createGraphicsCommandBuffers()
 	{
-		std::cout << "Try to allocate a command buffer for graphics command pool ..." << "\n";
+		std::cout << "Try to allocate a command buffers for graphics command pool ..." << "\n";
+		m_GraphicsCommandBuffer.resize(m_MaxFrameInFlight);
 		VkCommandBufferAllocateInfo CommandBufferAllocateInfo{};
 		CommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		CommandBufferAllocateInfo.commandPool = m_GraphicsCommandPool;
 		CommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		CommandBufferAllocateInfo.commandBufferCount = 1;
+		CommandBufferAllocateInfo.commandBufferCount = static_cast<uint32_t>(m_GraphicsCommandBuffer.size());
 
-		if (vkAllocateCommandBuffers(m_LogicalDevice, &CommandBufferAllocateInfo, &m_GraphicsCommandBuffer) != VK_SUCCESS)
+		if (vkAllocateCommandBuffers(m_LogicalDevice, &CommandBufferAllocateInfo, m_GraphicsCommandBuffer.data()) != VK_SUCCESS)
 			throw std::runtime_error("Failed to allocate command buffers!");
-		std::cout << "Success to allocate a command buffer for graphics command pool !" << "\n";
+		std::cout << "Success to allocate a command buffers for graphics command pool !" << "\n";
 	}
 
 	void Application::createSyncObjects()
 	{
 		std::cout << "Try to create required synchronized objects ..." << "\n";
+		m_ImageAvailableSemaphore.resize(m_MaxFrameInFlight);
+		m_RenderFinishedSemaphore.resize(m_MaxFrameInFlight);
+		m_InFlightFence.resize(m_MaxFrameInFlight);
 		VkSemaphoreCreateInfo SemaphoreCreateInfo{};
 		SemaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -862,13 +868,15 @@ namespace VulkanTutorial {
 		FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // fence初始化为有信号，否则第一帧无法开始
 
 		std::cout << "Required synchronized objects:" << "\n";
-		if (vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_ImageAvailableSemaphore) != VK_SUCCESS ||
-			vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_RenderFinishedSemaphore) != VK_SUCCESS ||
-			vkCreateFence(m_LogicalDevice, &FenceCreateInfo, nullptr, &m_InFlightFence) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create all synchronized objects!");
 		std::cout << "\tImage available semaphore" << "\n";
 		std::cout << "\tRender finished semaphore" << "\n";
 		std::cout << "\tIn flight fence" << "\n";
+		for (size_t i = 0; i < m_MaxFrameInFlight; ++i) {
+			if (vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_ImageAvailableSemaphore[i]) != VK_SUCCESS ||
+				vkCreateSemaphore(m_LogicalDevice, &SemaphoreCreateInfo, nullptr, &m_RenderFinishedSemaphore[i]) != VK_SUCCESS ||
+				vkCreateFence(m_LogicalDevice, &FenceCreateInfo, nullptr, &m_InFlightFence[i]) != VK_SUCCESS)
+				throw std::runtime_error("Failed to create all synchronized objects!");
+		}
 		std::cout << "Success to create required synchronized objects !" << "\n";
 	}
 
@@ -876,30 +884,31 @@ namespace VulkanTutorial {
 	{
 		std::cout << "Begin Frame ..." << "\n";
 		std::cout << std::format("Frame time: {:.2f} ms", vDeltaTime) << "\n";
-		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
-		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence);
+		std::cout << std::format("Current frame index: {}", m_CurrentFrame) << "\n";
+		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence[m_CurrentFrame], VK_TRUE, UINT64_MAX);
+		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence[m_CurrentFrame]);
 
 		uint32_t SwapchainImageIndex;
-		vkAcquireNextImageKHR(m_LogicalDevice, m_Swapchain, UINT64_MAX, m_ImageAvailableSemaphore,
+		vkAcquireNextImageKHR(m_LogicalDevice, m_Swapchain, UINT64_MAX, m_ImageAvailableSemaphore[m_CurrentFrame],
 			VK_NULL_HANDLE, &SwapchainImageIndex);
 		// Record Command Buffer
-		vkResetCommandBuffer(m_GraphicsCommandBuffer, 0);
-		recordCommandBuffer(m_GraphicsCommandBuffer, SwapchainImageIndex);
+		vkResetCommandBuffer(m_GraphicsCommandBuffer[m_CurrentFrame], 0);
+		recordCommandBuffer(m_GraphicsCommandBuffer[m_CurrentFrame], SwapchainImageIndex);
 		// Submit
 		VkSubmitInfo SubmitInfo{};
 		SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		VkSemaphore WaitSemaphores[] = { m_ImageAvailableSemaphore };
+		VkSemaphore WaitSemaphores[] = { m_ImageAvailableSemaphore[m_CurrentFrame] };
 		VkPipelineStageFlags WaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 		SubmitInfo.signalSemaphoreCount = 1;
 		SubmitInfo.pSignalSemaphores = WaitSemaphores;
 		SubmitInfo.pWaitDstStageMask = WaitStages;     // 这两个数组一一对应
 		SubmitInfo.commandBufferCount = 1;
-		SubmitInfo.pCommandBuffers = &m_GraphicsCommandBuffer;
-		VkSemaphore SignalSemaphores[] = { m_RenderFinishedSemaphore };
+		SubmitInfo.pCommandBuffers = &m_GraphicsCommandBuffer[m_CurrentFrame];
+		VkSemaphore SignalSemaphores[] = { m_RenderFinishedSemaphore[m_CurrentFrame] };
 		SubmitInfo.signalSemaphoreCount = 1;
 		SubmitInfo.pSignalSemaphores = SignalSemaphores;
 
-		if (vkQueueSubmit(m_GraphicsQueue, 1, &SubmitInfo, m_InFlightFence) != VK_SUCCESS)
+		if (vkQueueSubmit(m_GraphicsQueue, 1, &SubmitInfo, m_InFlightFence[m_CurrentFrame]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to submit draw command buffer!");
 
 		VkPresentInfoKHR PresentInfo{};
@@ -913,6 +922,8 @@ namespace VulkanTutorial {
 		PresentInfo.pResults = nullptr; // 单个Swapchain没必要
 
 		vkQueuePresentKHR(m_PresentQueue, &PresentInfo);
+
+		m_CurrentFrame = (m_CurrentFrame + 1) % m_MaxFrameInFlight;
 		std::cout << "End Frame" << "\n";
 	}
 

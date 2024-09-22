@@ -44,8 +44,8 @@ namespace VulkanTutorial {
 		void createRenderPass();
 		void createGraphicsPipeline();
 		void createFramebuffers();
-		void createCommandPool();
-		void createCommandBuffer();
+		void createGraphicsCommandPool();
+		void createGraphicsCommandBuffers();
 		void createSyncObjects();
 		// mainLoop
 		void drawFrame(float vDeltaTime);
@@ -84,6 +84,8 @@ namespace VulkanTutorial {
 	private:
 		const uint32_t m_Width = 800;
 		const uint32_t m_Height = 600;
+		const uint32_t m_MaxFrameInFlight = 2; // 即CPU最多领先GPU一帧画面，通常2是合理的
+		uint32_t m_CurrentFrame = 0;
 		GLFWwindow* m_Window = nullptr;
 		Timer m_Timer = {};
 		float m_LastFrameTime = 0.0f;
@@ -103,10 +105,10 @@ namespace VulkanTutorial {
 		VkPipeline m_Pipeline = VK_NULL_HANDLE;
 		std::vector<VkFramebuffer> m_SwapchainFramebuffers;
 		VkCommandPool m_GraphicsCommandPool = VK_NULL_HANDLE;
-		VkCommandBuffer m_GraphicsCommandBuffer = VK_NULL_HANDLE;
-		VkSemaphore m_ImageAvailableSemaphore = VK_NULL_HANDLE;
-		VkSemaphore m_RenderFinishedSemaphore = VK_NULL_HANDLE;
-		VkFence m_InFlightFence = VK_NULL_HANDLE;
+		std::vector<VkCommandBuffer> m_GraphicsCommandBuffer;
+		std::vector<VkSemaphore> m_ImageAvailableSemaphore;
+		std::vector<VkSemaphore> m_RenderFinishedSemaphore;
+		std::vector<VkFence> m_InFlightFence;
 
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue = VK_NULL_HANDLE;
