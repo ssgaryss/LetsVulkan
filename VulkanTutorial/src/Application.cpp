@@ -703,9 +703,11 @@ namespace VulkanTutorial {
 		VkPipelineVertexInputStateCreateInfo VertexInputStateCreateInfo{};
 		VertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		VertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
-		VertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr; // 结构体包含：绑定信息，顶点或实例作为步长等
+		auto VertexBindingDescription = Vertex::getBindingDescription();
+		VertexInputStateCreateInfo.pVertexBindingDescriptions = &VertexBindingDescription;           // 结构体包含：绑定信息，顶点或实例作为步长等
 		VertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
-		VertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr; //结构体包含：顶点属性布局、格式、偏移量等
+		auto VertexArributeDescriptions = Vertex::getAttributeDescriptions();
+		VertexInputStateCreateInfo.pVertexAttributeDescriptions = VertexArributeDescriptions.data(); //结构体包含：顶点属性布局、格式、偏移量等
 
 		// Input Assembly
 		VkPipelineInputAssemblyStateCreateInfo InputAssemblyStateCreateInfo{};
