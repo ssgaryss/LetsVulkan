@@ -1,6 +1,7 @@
 #pragma once
 #include "Base.h"
 #include "Timer.h"
+#include "Primitive.h"
 
 #include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -14,6 +15,12 @@
 
 
 namespace VulkanTutorial {
+
+	const std::vector<Vertex> Vertices = {
+		{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+		{{0.5f, 0.5f},  {0.0f, 1.0f, 0.0f}},
+		{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+	};
 
 	struct SwapChainSupportDetails {
 		VkSurfaceCapabilitiesKHR m_SurfaceCapabilities;

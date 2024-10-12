@@ -30,7 +30,8 @@ project "VulkanTutorial"
     {
         "GLFW_INCLUDE_VULKAN",
         "GLM_FORCE_RADIANS",
-        "GLM_FORCE_DEPTH_ZERO_TO_ONE"
+        "GLM_FORCE_DEPTH_ZERO_TO_ONE",
+        "NOMINMAX"                     -- Windows.h中的min() max()禁用
     }
 
     filter "system:windows"
