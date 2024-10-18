@@ -92,6 +92,7 @@ namespace VulkanTutorial {
 		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
 		cleanupSwapchain();
 		vkDestroyBuffer(m_LogicalDevice, m_VertexBuffer, nullptr);
+		vkFreeMemory(m_LogicalDevice, m_VertexBufferMemory, nullptr);
 		vkDestroyDevice(m_LogicalDevice, nullptr);
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
 		if (IsEnableValidationLayer) {
@@ -350,7 +351,7 @@ namespace VulkanTutorial {
 
 	void Application::recordCommandBuffer(VkCommandBuffer vCommandBuffer, uint32_t vImageIndex)
 	{
-		std::cout << "Try to record commands to a command buffer ..." << "\n";
+		//std::cout << "Try to record commands to a command buffer ..." << "\n";
 		VkCommandBufferBeginInfo CommandBufferBeginInfo{};
 		CommandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		CommandBufferBeginInfo.flags = 0;
@@ -358,7 +359,7 @@ namespace VulkanTutorial {
 
 		if (vkBeginCommandBuffer(vCommandBuffer, &CommandBufferBeginInfo) != VK_SUCCESS)
 			throw std::runtime_error("Failed to begin recording command buffer!");
-		std::cout << "cmd : vkBeginCommandBuffer" << "\n";
+		//std::cout << "cmd : vkBeginCommandBuffer" << "\n";
 
 		VkRenderPassBeginInfo RenderPassBeginInfo{};
 		RenderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -371,9 +372,9 @@ namespace VulkanTutorial {
 		RenderPassBeginInfo.pClearValues = &ClearColor;
 
 		vkCmdBeginRenderPass(vCommandBuffer, &RenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		std::cout << "cmd : vkCmdBeginRenderPass" << "\n";
+		//std::cout << "cmd : vkCmdBeginRenderPass" << "\n";
 		vkCmdBindPipeline(vCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
-		std::cout << "cmd : vkCmdBindPipeline" << "\n";
+		//std::cout << "cmd : vkCmdBindPipeline" << "\n";
 
 		// Dynamic States settings
 		VkViewport Viewport;
@@ -384,25 +385,42 @@ namespace VulkanTutorial {
 		Viewport.minDepth = 0.0f;
 		Viewport.maxDepth = 1.0f;
 		vkCmdSetViewport(vCommandBuffer, 0, 1, &Viewport); // 第二个参数是视口index，pipline允许多个视口
-		std::cout << "cmd : vkCmdSetViewport" << "\n";
+		//std::cout << "cmd : vkCmdSetViewport" << "\n";
 
 		VkRect2D Scissor;
 		Scissor.offset = { 0, 0 };
 		Scissor.extent = m_SwapchainExtent;
 		vkCmdSetScissor(vCommandBuffer, 0, 1, &Scissor);
-		std::cout << "cmd : vkCmdSetScissor" << "\n";
+		//std::cout << "cmd : vkCmdSetScissor" << "\n";
 
-		vkCmdDraw(vCommandBuffer, 3, 1, 0, 0);
-		std::cout << "cmd : vkCmdDraw" << "\n";
+		// Vertex Buffer
+		VkBuffer VertexBuffer[] = { m_VertexBuffer };
+		VkDeviceSize Offset[] = { 0 };
+		vkCmdBindVertexBuffers(vCommandBuffer, 0, 1, VertexBuffer, Offset); // 可以是多个！
+
+		vkCmdDraw(vCommandBuffer, static_cast<uint32_t>(Vertices.size()), 1, 0, 0);
+		//std::cout << "cmd : vkCmdDraw" << "\n";
 
 		vkCmdEndRenderPass(vCommandBuffer);
-		std::cout << "cmd : vkCmdEndRenderPass" << "\n";
+		//std::cout << "cmd : vkCmdEndRenderPass" << "\n";
 
 		if (vkEndCommandBuffer(vCommandBuffer) != VK_SUCCESS)
 			throw std::runtime_error("Failed to record command buffer!");
-		std::cout << "cmd : vkEndCommandBuffer" << "\n";
+		//std::cout << "cmd : vkEndCommandBuffer" << "\n";
 
-		std::cout << "Success to recording commands to a command buffer !" << "\n";
+		//std::cout << "Success to recording commands to a command buffer !" << "\n";
+	}
+
+	uint32_t Application::findMemoryType(uint32_t vTypeFilter, VkMemoryPropertyFlags vProperties)
+	{
+		VkPhysicalDeviceMemoryProperties MemoryProperties{};
+		vkGetPhysicalDeviceMemoryProperties(m_PhysicalDevice, &MemoryProperties);
+
+		for (uint32_t i = 0; i < MemoryProperties.memoryTypeCount; ++i) {
+			if ((vTypeFilter & (1 << i)) && (MemoryProperties.memoryTypes[i].propertyFlags & vProperties) == vProperties)
+				return i;
+		}
+		throw std::runtime_error("Failed to find suitable memory type!");
 	}
 
 	void Application::createInstance()
@@ -680,8 +698,8 @@ namespace VulkanTutorial {
 	void Application::createGraphicsPipeline()
 	{
 		std::cout << "Try to create a pipeline ..." << "\n";
-		auto VertexShaderCode = readFile("resources/shaders/spir-v/09_shader_base_vert.spv");
-		auto FragmentShaderCode = readFile("resources/shaders/spir-v/09_shader_base_frag.spv");
+		auto VertexShaderCode = readFile("resources/shaders/spir-v/18_shader_vertexbuffer_vert.spv");
+		auto FragmentShaderCode = readFile("resources/shaders/spir-v/18_shader_vertexbuffer_frag.spv");
 		VkShaderModule VertexShaderModule = createShaderModule(VertexShaderCode);
 		VkShaderModule FragmentShaderModule = createShaderModule(FragmentShaderCode);
 
@@ -704,11 +722,11 @@ namespace VulkanTutorial {
 		// VertexInput
 		VkPipelineVertexInputStateCreateInfo VertexInputStateCreateInfo{};
 		VertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		VertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
 		auto VertexBindingDescription = Vertex::getBindingDescription();
+		VertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
 		VertexInputStateCreateInfo.pVertexBindingDescriptions = &VertexBindingDescription;           // 结构体包含：绑定信息，顶点或实例作为步长等
-		VertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
 		auto VertexArributeDescriptions = Vertex::getAttributeDescriptions();
+		VertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(VertexArributeDescriptions.size());
 		VertexInputStateCreateInfo.pVertexAttributeDescriptions = VertexArributeDescriptions.data(); //结构体包含：顶点属性布局、格式、偏移量等
 
 		// Input Assembly
@@ -886,8 +904,28 @@ namespace VulkanTutorial {
 		BufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 		BufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-		if(vkCreateBuffer(m_LogicalDevice, &BufferCreateInfo, nullptr, &m_VertexBuffer) != VK_SUCCESS)
+		if (vkCreateBuffer(m_LogicalDevice, &BufferCreateInfo, nullptr, &m_VertexBuffer) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create vertex buffer!");
+
+		VkMemoryRequirements MemoryRequirement{};
+		vkGetBufferMemoryRequirements(m_LogicalDevice, m_VertexBuffer, &MemoryRequirement); // 查询VertexBuffer信息
+
+		VkMemoryAllocateInfo MemoryAllocateInfo{};
+		MemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		MemoryAllocateInfo.allocationSize = MemoryRequirement.size;
+		MemoryAllocateInfo.memoryTypeIndex = findMemoryType(MemoryRequirement.memoryTypeBits,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT      // 要求主机可见，才允许CPU通过vkMapMemory来访问并写入数据
+			| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT); // 要求一致性内存，当你通过CPU写入数据时，不需要手动调用vkFlushMappedMemoryRanges来同步数据
+
+		if (vkAllocateMemory(m_LogicalDevice, &MemoryAllocateInfo, nullptr, &m_VertexBufferMemory) != VK_SUCCESS)
+			throw std::runtime_error("Failed to allocate vertex buffer memory!");
+		vkBindBufferMemory(m_LogicalDevice, m_VertexBuffer, m_VertexBufferMemory, 0); // 将Memory绑定到Buffer
+
+		void* Data;
+		if (vkMapMemory(m_LogicalDevice, m_VertexBufferMemory, 0, BufferCreateInfo.size, 0, &Data) != VK_SUCCESS) // 这里Data是指向GPU显存的！
+			throw std::runtime_error("Failed to map vertex buffer memory!");
+		memcpy(Data, Vertices.data(), (size_t)BufferCreateInfo.size); // 设置数据
+		vkUnmapMemory(m_LogicalDevice, m_VertexBufferMemory); // 这里VK_MEMORY_PROPERTY_HOST_COHERENT_BIT标志，unmap数据会同步到GPU
 
 		std::cout << "Success to create a vertex buffer !" << "\n";
 	}
@@ -935,9 +973,9 @@ namespace VulkanTutorial {
 
 	void Application::drawFrame(float vDeltaTime)
 	{
-		std::cout << "Begin Frame ..." << "\n";
-		std::cout << std::format("Frame time: {:.2f} ms", vDeltaTime) << "\n";
-		std::cout << std::format("Current frame index: {}", m_CurrentFrame) << "\n";
+		//std::cout << "Begin Frame ..." << "\n";
+		//std::cout << std::format("Frame time: {:.2f} ms", vDeltaTime) << "\n";
+		//std::cout << std::format("Current frame index: {}", m_CurrentFrame) << "\n";
 		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence[m_CurrentFrame], VK_TRUE, UINT64_MAX);
 
 		uint32_t SwapchainImageIndex;
@@ -993,7 +1031,7 @@ namespace VulkanTutorial {
 		}
 
 		m_CurrentFrame = (m_CurrentFrame + 1) % m_MaxFrameInFlight;
-		std::cout << "End Frame" << "\n";
+		//std::cout << "End Frame" << "\n";
 	}
 
 }

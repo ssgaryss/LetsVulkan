@@ -17,8 +17,8 @@
 namespace VulkanTutorial {
 
 	const std::vector<Vertex> Vertices = {
-		{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-		{{0.5f, 0.5f},  {0.0f, 1.0f, 0.0f}},
+		{{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+		{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
 		{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
 	};
 
@@ -91,6 +91,9 @@ namespace VulkanTutorial {
 	private:
 		// Command
 		void recordCommandBuffer(VkCommandBuffer vCommandBuffer, uint32_t vImageIndex);
+	private:
+		// Buffer
+		uint32_t findMemoryType(uint32_t vTypeFilter, VkMemoryPropertyFlags vProperties);
 	public:
 		uint32_t m_Width = 800;
 		uint32_t m_Height = 600;
@@ -122,7 +125,8 @@ namespace VulkanTutorial {
 		std::vector<VkSemaphore> m_RenderFinishedSemaphore;
 		std::vector<VkFence> m_InFlightFence;
 
-		VkBuffer m_VertexBuffer;
+		VkBuffer m_VertexBuffer = VK_NULL_HANDLE;
+		VkDeviceMemory m_VertexBufferMemory = VK_NULL_HANDLE;
 
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue = VK_NULL_HANDLE;
