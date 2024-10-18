@@ -52,6 +52,7 @@ namespace VulkanTutorial {
 		void createGraphicsPipeline();
 		void createFramebuffers();
 		void createGraphicsCommandPool();
+		void createVertexBuffer();
 		void createGraphicsCommandBuffers();
 		void createSyncObjects();
 		// mainLoop
@@ -120,6 +121,8 @@ namespace VulkanTutorial {
 		std::vector<VkSemaphore> m_ImageAvailableSemaphore;
 		std::vector<VkSemaphore> m_RenderFinishedSemaphore;
 		std::vector<VkFence> m_InFlightFence;
+
+		VkBuffer m_VertexBuffer;
 
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue = VK_NULL_HANDLE;

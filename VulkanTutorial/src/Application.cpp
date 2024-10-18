@@ -58,6 +58,7 @@ namespace VulkanTutorial {
 		createGraphicsPipeline();
 		createFramebuffers();
 		createGraphicsCommandPool();
+		createVertexBuffer();
 		createGraphicsCommandBuffers();
 		createSyncObjects();
 	}
@@ -90,6 +91,7 @@ namespace VulkanTutorial {
 		vkDestroyPipelineLayout(m_LogicalDevice, m_PipelineLayout, nullptr);
 		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
 		cleanupSwapchain();
+		vkDestroyBuffer(m_LogicalDevice, m_VertexBuffer, nullptr);
 		vkDestroyDevice(m_LogicalDevice, nullptr);
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
 		if (IsEnableValidationLayer) {
@@ -873,6 +875,21 @@ namespace VulkanTutorial {
 		if (vkCreateCommandPool(m_LogicalDevice, &CommandPoolCreateInfo, nullptr, &m_GraphicsCommandPool) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create command pool!");
 		std::cout << "Success to create a graphics command pool !" << "\n";
+	}
+
+	void Application::createVertexBuffer()
+	{
+		std::cout << "Try to create a vertex buffer ..." << "\n";
+		VkBufferCreateInfo BufferCreateInfo{};
+		BufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		BufferCreateInfo.size = Vertices.size() * sizeof(Vertices[0]);
+		BufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		BufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		if(vkCreateBuffer(m_LogicalDevice, &BufferCreateInfo, nullptr, &m_VertexBuffer) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create vertex buffer!");
+
+		std::cout << "Success to create a vertex buffer !" << "\n";
 	}
 
 	void Application::createGraphicsCommandBuffers()
