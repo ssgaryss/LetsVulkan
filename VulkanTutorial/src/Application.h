@@ -94,6 +94,9 @@ namespace VulkanTutorial {
 	private:
 		// Buffer
 		uint32_t findMemoryType(uint32_t vTypeFilter, VkMemoryPropertyFlags vProperties);
+		void createBuffer(VkDeviceSize vSize, VkBufferUsageFlags vUsage, VkMemoryPropertyFlags vFlags,
+			VkBuffer& vBuffer, VkDeviceMemory& vBufferMemory); // 创建Buffer并分配Memory
+		void copyBuffer(VkBuffer vDestination, VkBuffer vSource, VkDeviceSize vSize);
 	public:
 		uint32_t m_Width = 800;
 		uint32_t m_Height = 600;
