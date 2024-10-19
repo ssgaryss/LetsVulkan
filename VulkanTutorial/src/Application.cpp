@@ -59,6 +59,7 @@ namespace VulkanTutorial {
 		createFramebuffers();
 		createGraphicsCommandPool();
 		createVertexBuffer();
+		createIndexBuffer();
 		createGraphicsCommandBuffers();
 		createSyncObjects();
 	}
@@ -91,6 +92,8 @@ namespace VulkanTutorial {
 		vkDestroyPipelineLayout(m_LogicalDevice, m_PipelineLayout, nullptr);
 		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
 		cleanupSwapchain();
+		vkDestroyBuffer(m_LogicalDevice, m_IndexBuffer, nullptr);
+		vkFreeMemory(m_LogicalDevice, m_IndexBufferMemory, nullptr);
 		vkDestroyBuffer(m_LogicalDevice, m_VertexBuffer, nullptr);
 		vkFreeMemory(m_LogicalDevice, m_VertexBufferMemory, nullptr);
 		vkDestroyDevice(m_LogicalDevice, nullptr);
@@ -397,8 +400,9 @@ namespace VulkanTutorial {
 		VkBuffer VertexBuffer[] = { m_VertexBuffer };
 		VkDeviceSize Offset[] = { 0 };
 		vkCmdBindVertexBuffers(vCommandBuffer, 0, 1, VertexBuffer, Offset); // 可以是多个！
+		vkCmdBindIndexBuffer(vCommandBuffer, m_IndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-		vkCmdDraw(vCommandBuffer, static_cast<uint32_t>(Vertices.size()), 1, 0, 0);
+		vkCmdDrawIndexed(vCommandBuffer, static_cast<uint32_t>(Indices.size()), 1, 0, 0, 0);
 		//std::cout << "cmd : vkCmdDraw" << "\n";
 
 		vkCmdEndRenderPass(vCommandBuffer);
@@ -421,6 +425,64 @@ namespace VulkanTutorial {
 				return i;
 		}
 		throw std::runtime_error("Failed to find suitable memory type!");
+	}
+
+	void Application::createBuffer(VkDeviceSize vSize, VkBufferUsageFlags vUsage, VkMemoryPropertyFlags vFlags, VkBuffer& vBuffer, VkDeviceMemory& vBufferMemory)
+	{
+		VkBufferCreateInfo BufferCreateInfo{};
+		BufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		BufferCreateInfo.size = Vertices.size() * sizeof(Vertices[0]);
+		BufferCreateInfo.usage = vUsage;
+		BufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		if (vkCreateBuffer(m_LogicalDevice, &BufferCreateInfo, nullptr, &vBuffer) != VK_SUCCESS)
+			throw std::runtime_error("Failed to create vertex buffer!");
+
+		VkMemoryRequirements MemoryRequirement{};
+		vkGetBufferMemoryRequirements(m_LogicalDevice, vBuffer, &MemoryRequirement); // 查询VertexBuffer信息
+
+		VkMemoryAllocateInfo MemoryAllocateInfo{};
+		MemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		MemoryAllocateInfo.allocationSize = MemoryRequirement.size;
+		MemoryAllocateInfo.memoryTypeIndex = findMemoryType(MemoryRequirement.memoryTypeBits, vFlags);
+
+		if (vkAllocateMemory(m_LogicalDevice, &MemoryAllocateInfo, nullptr, &vBufferMemory) != VK_SUCCESS)
+			throw std::runtime_error("Failed to allocate vertex buffer memory!");
+		vkBindBufferMemory(m_LogicalDevice, vBuffer, vBufferMemory, 0); // 将Memory绑定到Buffer
+	}
+
+	void Application::copyBuffer(VkBuffer vDestination, VkBuffer vSource, VkDeviceSize vSize)
+	{
+		VkCommandBufferAllocateInfo CommandBufferAllocateInfo{};
+		CommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		CommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		CommandBufferAllocateInfo.commandPool = m_GraphicsCommandPool;
+		CommandBufferAllocateInfo.commandBufferCount = 1;
+		VkCommandBuffer CopyCommandBuffer = VK_NULL_HANDLE;
+		if (vkAllocateCommandBuffers(m_LogicalDevice, &CommandBufferAllocateInfo, &CopyCommandBuffer) != VK_SUCCESS)
+			throw std::runtime_error("Failed to allocate command buffers!");
+
+		VkCommandBufferBeginInfo CommandBufferBeginInfo{};
+		CommandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		CommandBufferBeginInfo.flags = 0;
+		CommandBufferBeginInfo.pInheritanceInfo = nullptr; // 次级缓冲区才需要指定
+
+		vkBeginCommandBuffer(CopyCommandBuffer, &CommandBufferBeginInfo);
+		VkBufferCopy CopyRegion{};
+		CopyRegion.srcOffset = 0;
+		CopyRegion.dstOffset = 0;
+		CopyRegion.size = vSize;
+		vkCmdCopyBuffer(CopyCommandBuffer, vSource, vDestination, 1, &CopyRegion);
+		vkEndCommandBuffer(CopyCommandBuffer);
+
+		VkSubmitInfo SubmitInfo{};
+		SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		SubmitInfo.commandBufferCount = 1;
+		SubmitInfo.pCommandBuffers = &CopyCommandBuffer;
+
+		vkQueueSubmit(m_GraphicsQueue, 1, &SubmitInfo, VK_NULL_HANDLE);
+		vkQueueWaitIdle(m_GraphicsQueue);
+		vkFreeCommandBuffers(m_LogicalDevice, m_GraphicsCommandPool, 1, &CopyCommandBuffer);
 	}
 
 	void Application::createInstance()
@@ -898,36 +960,57 @@ namespace VulkanTutorial {
 	void Application::createVertexBuffer()
 	{
 		std::cout << "Try to create a vertex buffer ..." << "\n";
-		VkBufferCreateInfo BufferCreateInfo{};
-		BufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		BufferCreateInfo.size = Vertices.size() * sizeof(Vertices[0]);
-		BufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		BufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		if (vkCreateBuffer(m_LogicalDevice, &BufferCreateInfo, nullptr, &m_VertexBuffer) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create vertex buffer!");
-
-		VkMemoryRequirements MemoryRequirement{};
-		vkGetBufferMemoryRequirements(m_LogicalDevice, m_VertexBuffer, &MemoryRequirement); // 查询VertexBuffer信息
-
-		VkMemoryAllocateInfo MemoryAllocateInfo{};
-		MemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		MemoryAllocateInfo.allocationSize = MemoryRequirement.size;
-		MemoryAllocateInfo.memoryTypeIndex = findMemoryType(MemoryRequirement.memoryTypeBits,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT      // 要求主机可见，才允许CPU通过vkMapMemory来访问并写入数据
-			| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT); // 要求一致性内存，当你通过CPU写入数据时，不需要手动调用vkFlushMappedMemoryRanges来同步数据
-
-		if (vkAllocateMemory(m_LogicalDevice, &MemoryAllocateInfo, nullptr, &m_VertexBufferMemory) != VK_SUCCESS)
-			throw std::runtime_error("Failed to allocate vertex buffer memory!");
-		vkBindBufferMemory(m_LogicalDevice, m_VertexBuffer, m_VertexBufferMemory, 0); // 将Memory绑定到Buffer
+		VkDeviceSize BufferSize = Vertices.size() * sizeof(Vertices[0]);
+		// Staging Buffer
+		VkBuffer StagingBuffer = VK_NULL_HANDLE;
+		VkDeviceMemory StagingBufferMemory = VK_NULL_HANDLE;
+		createBuffer(BufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT   // 要求主机可见，才允许CPU通过vkMapMemory来访问并写入数据
+			| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, StagingBuffer, StagingBufferMemory);
 
 		void* Data;
-		if (vkMapMemory(m_LogicalDevice, m_VertexBufferMemory, 0, BufferCreateInfo.size, 0, &Data) != VK_SUCCESS) // 这里Data是指向GPU显存的！
+		if (vkMapMemory(m_LogicalDevice, StagingBufferMemory, 0, BufferSize, 0, &Data) != VK_SUCCESS) // 这里Data是指向GPU显存的！
 			throw std::runtime_error("Failed to map vertex buffer memory!");
-		memcpy(Data, Vertices.data(), (size_t)BufferCreateInfo.size); // 设置数据
-		vkUnmapMemory(m_LogicalDevice, m_VertexBufferMemory); // 这里VK_MEMORY_PROPERTY_HOST_COHERENT_BIT标志，unmap数据会同步到GPU
+		memcpy(Data, Vertices.data(), (size_t)BufferSize); // 设置数据
+		vkUnmapMemory(m_LogicalDevice, StagingBufferMemory); // 这里VK_MEMORY_PROPERTY_HOST_COHERENT_BIT标志，unmap数据会同步到GPU
+
+		// Vertex Buffer
+		createBuffer(BufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VertexBuffer, m_VertexBufferMemory); // VK_MEMORY_PROPERTY_HOST_COHERENT_BIT要求一致性内存，当你通过CPU写入数据时，不需要手动调用vkFlushMappedMemoryRanges来同步数据
+
+		copyBuffer(m_VertexBuffer, StagingBuffer, BufferSize);
+
+		vkDestroyBuffer(m_LogicalDevice, StagingBuffer, nullptr);
+		vkFreeMemory(m_LogicalDevice, StagingBufferMemory, nullptr);
 
 		std::cout << "Success to create a vertex buffer !" << "\n";
+	}
+
+	void Application::createIndexBuffer()
+	{
+		std::cout << "Try to create a index buffer ..." << "\n";
+		VkDeviceSize BufferSize = Indices.size() * sizeof(Indices[0]);
+		// Staging Buffer
+		VkBuffer StagingBuffer = VK_NULL_HANDLE;
+		VkDeviceMemory StagingBufferMemory = VK_NULL_HANDLE;
+		createBuffer(BufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT   // 要求主机可见，才允许CPU通过vkMapMemory来访问并写入数据
+			| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, StagingBuffer, StagingBufferMemory);
+
+		void* Data;
+		if (vkMapMemory(m_LogicalDevice, StagingBufferMemory, 0, BufferSize, 0, &Data) != VK_SUCCESS) // 这里Data是指向GPU显存的！
+			throw std::runtime_error("Failed to map vertex buffer memory!");
+		memcpy(Data, Indices.data(), (size_t)BufferSize); // 设置数据
+		vkUnmapMemory(m_LogicalDevice, StagingBufferMemory); // 这里VK_MEMORY_PROPERTY_HOST_COHERENT_BIT标志，unmap数据会同步到GPU
+
+		// Vertex Buffer
+		createBuffer(BufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_IndexBuffer, m_IndexBufferMemory); // VK_MEMORY_PROPERTY_HOST_COHERENT_BIT要求一致性内存，当你通过CPU写入数据时，不需要手动调用vkFlushMappedMemoryRanges来同步数据
+
+		copyBuffer(m_IndexBuffer, StagingBuffer, BufferSize);
+
+		vkDestroyBuffer(m_LogicalDevice, StagingBuffer, nullptr);
+		vkFreeMemory(m_LogicalDevice, StagingBufferMemory, nullptr);
+
+		std::cout << "Success to create a index buffer !" << "\n";
 	}
 
 	void Application::createGraphicsCommandBuffers()
