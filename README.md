@@ -2,7 +2,7 @@
 Time to learning Vulkan instead of OpenGL.
 
 ### Software Requirements
-- **Visual Studio 2022**(I used C++20)
+- **Visual Studio 2022** (I used C++20)
   
 ## Getting Started
 
