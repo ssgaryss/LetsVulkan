@@ -17,9 +17,14 @@
 namespace VulkanTutorial {
 
 	const std::vector<Vertex> Vertices = {
-		{{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
-		{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-		{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+		{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+		{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+		{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}},
+	};
+
+	const std::vector<uint16_t> Indices = {
+		0, 1, 2, 2, 3, 0
 	};
 
 	struct SwapChainSupportDetails {
@@ -53,6 +58,7 @@ namespace VulkanTutorial {
 		void createFramebuffers();
 		void createGraphicsCommandPool();
 		void createVertexBuffer();
+		void createIndexBuffer();
 		void createGraphicsCommandBuffers();
 		void createSyncObjects();
 		// mainLoop
@@ -130,6 +136,8 @@ namespace VulkanTutorial {
 
 		VkBuffer m_VertexBuffer = VK_NULL_HANDLE;
 		VkDeviceMemory m_VertexBufferMemory = VK_NULL_HANDLE;
+		VkBuffer m_IndexBuffer = VK_NULL_HANDLE;
+		VkDeviceMemory m_IndexBufferMemory = VK_NULL_HANDLE;
 
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue = VK_NULL_HANDLE;
