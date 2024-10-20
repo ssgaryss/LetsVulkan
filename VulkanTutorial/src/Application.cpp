@@ -60,6 +60,9 @@ namespace VulkanTutorial {
 		createGraphicsCommandPool();
 		createVertexBuffer();
 		createIndexBuffer();
+		//createUniformBuffers
+		//createDescriptorPool
+		//createDescriptorSets
 		createGraphicsCommandBuffers();
 		createSyncObjects();
 	}
@@ -90,6 +93,7 @@ namespace VulkanTutorial {
 		vkDestroyCommandPool(m_LogicalDevice, m_GraphicsCommandPool, nullptr);
 		vkDestroyPipeline(m_LogicalDevice, m_Pipeline, nullptr);
 		vkDestroyPipelineLayout(m_LogicalDevice, m_PipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(m_LogicalDevice, m_DescriptorSetLayout, nullptr);
 		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
 		cleanupSwapchain();
 		vkDestroyBuffer(m_LogicalDevice, m_IndexBuffer, nullptr);
@@ -880,10 +884,10 @@ namespace VulkanTutorial {
 		// Pipeline Layout
 		VkPipelineLayoutCreateInfo PipelineLayoutCreateInfo{};
 		PipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		PipelineLayoutCreateInfo.setLayoutCount = 0;
+		PipelineLayoutCreateInfo.setLayoutCount = 0;   // descriptor set layout
 		PipelineLayoutCreateInfo.pSetLayouts = nullptr;
 		PipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-		PipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+		PipelineLayoutCreateInfo.pPushConstantRanges = nullptr;  // push constant
 
 		if (vkCreatePipelineLayout(m_LogicalDevice, &PipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create pipeline layout!");

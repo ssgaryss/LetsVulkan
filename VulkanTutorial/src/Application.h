@@ -59,6 +59,9 @@ namespace VulkanTutorial {
 		void createGraphicsCommandPool();
 		void createVertexBuffer();
 		void createIndexBuffer();
+		void createUniformBuffers();
+		void createDescriptorPool();
+		void createDescriptorSets();
 		void createGraphicsCommandBuffers();
 		void createSyncObjects();
 		// mainLoop
@@ -125,6 +128,7 @@ namespace VulkanTutorial {
 		VkFormat m_SwapchainFormat = VK_FORMAT_UNDEFINED;
 		VkExtent2D m_SwapchainExtent;
 		VkRenderPass m_RenderPass = VK_NULL_HANDLE;
+		VkDescriptorSetLayout m_DescriptorSetLayout = VK_NULL_HANDLE;
 		VkPipelineLayout m_PipelineLayout = VK_NULL_HANDLE;
 		VkPipeline m_Pipeline = VK_NULL_HANDLE;
 		std::vector<VkFramebuffer> m_SwapchainFramebuffers;
